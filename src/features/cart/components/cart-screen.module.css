@@ -1,0 +1,208 @@
+.page {
+  min-height: 100svh;
+  overflow-x: hidden;
+  color: #f8f4eb;
+  background:
+    radial-gradient(circle at 50% -8%, rgb(215 147 26 / 9%), transparent 27rem),
+    #090a08;
+}
+
+.ambientGlow {
+  position: fixed;
+  top: -170px;
+  left: 50%;
+  width: 410px;
+  height: 310px;
+  border-radius: 50%;
+  background: rgb(210 143 24 / 7%);
+  filter: blur(72px);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.shell {
+  position: relative;
+  width: min(100%, 460px);
+  min-height: 100svh;
+  margin-inline: auto;
+  padding: max(21px, env(safe-area-inset-top)) 17px max(110px, calc(env(safe-area-inset-bottom) + 94px));
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 39px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+  direction: ltr;
+  animation: enter 260ms ease-out both;
+}
+
+.header > a {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  place-items: center;
+  border: 1px solid #37342c;
+  border-radius: 50%;
+  color: #eee9df;
+  background: #171714;
+}
+
+.header > a svg {
+  width: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.titleGroup { min-width: 0; }
+.titleGroup h1 {
+  overflow: hidden;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.titleGroup p { margin: 4px 0 0; color: #d99b24; direction: rtl; font-size: 11px; font-weight: 700; text-align: left; }
+
+.liveBadge { display: flex; align-items: center; gap: 5px; color: #23ce94; font-size: 9px; font-weight: 800; }
+.liveBadge i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 9px currentColor; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; animation: enter 260ms 40ms ease-out both; }
+.stats > div { display: flex; min-height: 75px; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #383329; border-radius: 14px; background: linear-gradient(145deg, #181815, #121310); box-shadow: inset 0 1px rgb(255 255 255 / 3%); }
+.stats b { color: #e0a020; font-size: 18px; line-height: 1; }
+.stats b small { font-size: 8px; }
+.stats span { margin-top: 6px; color: #aaa59b; font-size: 10px; font-weight: 700; }
+.stats i { margin-top: 2px; color: #68655e; direction: rtl; font-size: 9px; font-style: normal; }
+.stats .accentStat { border-color: rgb(24 202 141 / 28%); }
+.stats .accentStat b { color: #20ce93; }
+
+.splitControl {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 9px 11px;
+  border: 1px solid #37332b;
+  border-radius: 14px;
+  background: #151512;
+  direction: ltr;
+  animation: enter 260ms 70ms ease-out both;
+}
+
+.splitIcon { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #5a4215; border-radius: 10px; color: #dfa01e; background: #221908; }
+.splitIcon svg { width: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.splitControl > div:nth-child(2) { display: flex; min-width: 0; flex-direction: column; }
+.splitControl strong { font-size: 12px; }
+.splitControl span { margin-top: 2px; color: #817d75; direction: rtl; font-size: 10px; text-align: left; }
+.splitControl > button { position: relative; width: 40px; height: 23px; padding: 0; border: 0; border-radius: 15px; background: #34332f; cursor: pointer; transition: background 150ms ease; }
+.splitControl > button i { position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: #f0ede6; box-shadow: 0 2px 5px rgb(0 0 0 / 25%); transition: transform 150ms ease; }
+.splitControl > .switchActive { background: #159a70; }
+.splitControl > .switchActive i { transform: translateX(17px); }
+
+.splitPreview { display: grid; gap: 7px; margin: -2px 0 12px; padding: 11px 12px; border: 1px solid rgb(24 202 141 / 22%); border-radius: 13px; background: rgb(24 202 141 / 5%); animation: expand 190ms ease-out both; }
+.splitPreview > div { display: flex; align-items: center; justify-content: space-between; }
+.splitPreview span { display: flex; align-items: center; gap: 7px; color: #c8c3b9; font-size: 11px; }
+.splitPreview span i { display: grid; width: 23px; height: 23px; place-items: center; border: 1px solid #1db781; border-radius: 50%; color: #20ce93; background: #10261f; font-size: 9px; font-style: normal; font-weight: 800; }
+.splitPreview b { color: #20ce93; font-size: 12px; }.splitPreview b small { font-size: 8px; }
+
+.orderGroups { display: grid; gap: 11px; }
+.orderGroup { overflow: hidden; border: 1px solid #39342a; border-radius: 17px; background: #171714; box-shadow: 0 8px 22px rgb(0 0 0 / 12%); animation: group-in 280ms ease-out both; }
+.orderGroup:nth-child(2) { animation-delay: 45ms; }.orderGroup:nth-child(3) { animation-delay: 90ms; }
+.hostOrder { border-color: rgb(24 202 141 / 42%); box-shadow: 0 9px 25px rgb(24 202 141 / 5%); }
+.orderGroup > header { display: grid; grid-template-columns: 35px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 12px; border-bottom: 1px solid #2c2a24; direction: ltr; }
+.avatar { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #b27a18; border-radius: 50%; color: #dfa01e; background: #2b200d; font-size: 12px; font-weight: 800; }
+.hostOrder .avatar { border-color: #1ac78d; color: #20d398; background: #102b22; }
+.orderGroup header > div:nth-child(2) { min-width: 0; }
+.orderGroup h2 { overflow: hidden; margin: 0; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.orderGroup header p { overflow: hidden; margin: 3px 0 0; color: #88847b; direction: rtl; font-size: 9px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.groupSummary { display: flex; align-items: flex-end; flex-direction: column; }
+.groupSummary b { color: #e0a020; font-size: 13px; }.groupSummary b small { font-size: 7px; }
+.groupSummary span { margin-top: 3px; color: #6e6a63; font-size: 9px; }
+.hostOrder .groupSummary b { color: #20ce93; }
+
+.groupItems { display: grid; }
+.orderItem { position: relative; display: grid; min-height: 66px; grid-template-columns: 45px minmax(0, 1fr) auto auto 20px; align-items: center; gap: 8px; padding: 9px 10px; direction: ltr; }
+.orderItem + .orderItem { border-top: 1px solid #282721; }
+.productImage { position: relative; width: 45px; height: 45px; overflow: hidden; border-radius: 9px; background: #25241f; }
+.productImage img { object-fit: cover; }
+.productCopy { min-width: 0; }
+.productCopy h3 { overflow: hidden; margin: 0; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.productCopy p { overflow: hidden; margin: 4px 0 0; color: #868178; direction: rtl; font-size: 9px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.quantity { padding: 3px 6px; border-radius: 7px; color: #98938a; background: #292925; font-size: 9px; font-weight: 700; }
+.itemPrice { min-width: 27px; color: #e0a020; font-size: 12px; text-align: right; }
+.orderItem > button { display: grid; width: 20px; height: 20px; place-items: center; border: 0; border-radius: 50%; color: #766f67; background: transparent; cursor: pointer; font-size: 16px; }
+.orderItem > button:hover { color: #e27562; background: rgb(226 117 98 / 8%); }
+
+.combinedTotal { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding: 13px 14px; border: 1px solid #3a352c; border-radius: 14px; background: linear-gradient(145deg, #1a1a17, #131310); direction: ltr; }
+.combinedTotal > div { display: flex; flex-direction: column; }.combinedTotal strong { font-size: 12px; }.combinedTotal span { margin-top: 3px; color: #7e7a72; direction: rtl; font-size: 10px; text-align: left; }
+.combinedTotal > b { color: #e0a020; font-size: 20px; }.combinedTotal > b small { color: #837e75; font-size: 9px; }
+
+.hostNotice { display: grid; grid-template-columns: 35px 1fr; align-items: center; gap: 10px; margin-top: 9px; padding: 10px 12px; border: 1px solid rgb(24 202 141 / 20%); border-radius: 13px; background: rgb(24 202 141 / 4%); }
+.hostNotice > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; color: #20ce93; background: #10271f; }
+.hostNotice svg { width: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.hostNotice strong { color: #28d39a; font-size: 11px; }.hostNotice p { margin: 3px 0 0; color: #817d75; font-size: 9px; line-height: 1.5; }
+
+.actions { display: flex; flex-direction: column; gap: 10px; margin-top: 11px; }
+.actions > button { display: grid; min-height: 67px; grid-template-columns: 24px 1fr auto; align-items: center; gap: 10px; padding: 9px 13px; border: 0; border-radius: 17px; color: #1a1105; background: linear-gradient(120deg, #eca71f, #c77b0d); box-shadow: 0 13px 29px rgb(199 123 13 / 18%); cursor: pointer; direction: ltr; transition: transform 120ms ease, box-shadow 120ms ease; }
+.actions > button:active:not(:disabled) { box-shadow: 0 7px 18px rgb(199 123 13 / 14%); transform: scale(.985); }
+.actions > button:disabled { cursor: default; opacity: .65; }
+.actions > button > svg { width: 23px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.actions > button > span { min-width: 0; text-align: left; }.actions strong { display: block; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.actions span small { display: block; margin-top: 3px; direction: rtl; font-size: 9px; text-align: left; }
+.actions button > b { display: flex; min-width: 44px; min-height: 44px; flex-direction: column; align-items: center; justify-content: center; border-radius: 11px; background: rgb(255 255 255 / 13%); font-size: 16px; }.actions button > b small { font-size: 8px; }
+.addMoreButton { display: grid; min-height: 62px; grid-template-columns: 38px 1fr 22px; grid-template-rows: 1fr 1fr; align-items: center; gap: 0 10px; padding: 9px 12px; border: 1px solid #4c3816; border-radius: 16px; color: #f3dfb2; background: linear-gradient(135deg, #241a09, #171512); text-align: left; text-decoration: none; transition: border-color 150ms ease, transform 120ms ease, background 150ms ease; }.addMoreButton:active { border-color: #dfa01e; background: #2a1e0a; transform: scale(.985); }.addMoreButton > span { display: grid; width: 35px; height: 35px; grid-row: 1 / 3; place-items: center; border: 1px solid #b77d19; border-radius: 11px; color: #171006; background: #dfa01e; font-size: 25px; font-weight: 400; }.addMoreButton strong { align-self: end; font-size: 13px; }.addMoreButton small { align-self: start; margin-top: 3px; color: #9d8960; direction: rtl; font-size: 9px; text-align: left; }.addMoreButton > i { grid-column: 3; grid-row: 1 / 3; color: #dfa01e; font-size: 25px; font-style: normal; }
+
+.empty { display: flex; min-height: 70svh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.empty > div { display: grid; width: 72px; height: 72px; margin-bottom: 18px; place-items: center; border: 1px solid #4a391a; border-radius: 50%; background: #1c170d; font-size: 28px; }
+.empty h2 { margin: 0; font-family: Georgia, serif; font-size: 22px; }.empty p { margin: 8px 0 20px; color: #969188; font-size: 12px; }
+.empty a { padding: 12px 21px; border-radius: 13px; color: #171006; background: #dfa01e; font-size: 13px; font-weight: 800; text-decoration: none; }.empty a small { display: block; margin-top: 2px; font-size: 9px; }
+.loading { width: 32px; height: 32px; margin: 35svh auto 0; border: 3px solid #343027; border-top-color: #dfa01e; border-radius: 50%; animation: spin .7s linear infinite; }
+
+.successBackdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(0 0 0 / 76%); animation: fade-in 180ms ease-out both; }
+.successCard { width: min(100%, 350px); padding: 27px 22px 22px; border: 1px solid rgb(24 202 141 / 35%); border-radius: 22px; background: #151612; box-shadow: 0 25px 70px rgb(0 0 0 / 45%); text-align: center; animation: success-in 260ms cubic-bezier(.2,.8,.2,1) both; }
+.successCard > span { display: grid; width: 58px; height: 58px; margin: 0 auto 15px; place-items: center; border-radius: 50%; color: #07150f; background: #20ce93; box-shadow: 0 0 27px rgb(32 206 147 / 22%); }
+.successCard svg { width: 28px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.3; }
+.successCard p { margin: 0 0 4px; color: #20ce93; font-size: 11px; }.successCard h2 { margin: 0; font-family: Georgia, serif; font-size: 23px; }.successCard > small { display: block; margin-top: 9px; color: #817d75; font-size: 10px; }
+.successCard > a { display: flex; min-height: 47px; align-items: center; justify-content: center; gap: 6px; margin-top: 20px; border-radius: 13px; color: #07150f; background: #20ce93; font-size: 13px; font-weight: 800; text-decoration: none; }.successCard > a i { font-size: 10px; font-style: normal; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes enter { from { opacity: 0; transform: translateY(8px); } }
+@keyframes group-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes expand { from { opacity: 0; transform: translateY(-5px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes success-in { from { opacity: 0; transform: translateY(15px) scale(.97); } }
+
+@media (max-width: 350px) {
+  .shell { padding-inline: 12px; }
+  .titleGroup h1 { font-size: 21px; }
+  .stats { gap: 6px; }.stats > div { min-height: 69px; }
+  .orderGroup > header { grid-template-columns: 32px minmax(0, 1fr) auto; padding-inline: 9px; }
+  .avatar { width: 31px; height: 31px; }
+  .orderItem { grid-template-columns: 41px minmax(0, 1fr) auto auto 18px; gap: 6px; padding-inline: 8px; }
+  .productImage { width: 41px; height: 41px; }
+  .actions strong { font-size: 12px; }
+}
+
+@media (min-width: 560px) { .shell { border-inline: 1px solid rgb(224 160 32 / 7%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .header,
+  .stats,
+  .splitControl,
+  .splitPreview,
+  .orderGroup,
+  .loading,
+  .successBackdrop,
+  .successCard { animation: none; }
+  .splitControl > button,
+  .splitControl > button i,
+  .actions > button { transition: none; }
+}

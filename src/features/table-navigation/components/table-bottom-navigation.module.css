@@ -1,0 +1,49 @@
+.navigation {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 0 10px max(8px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.navigation > div {
+  display: grid;
+  width: min(calc(100% - 12px), 430px);
+  min-height: 64px;
+  grid-template-columns: repeat(4, 1fr);
+  margin-inline: auto;
+  padding: 6px;
+  border: 1px solid rgb(224 160 32 / 22%);
+  border-radius: 20px;
+  background: rgb(18 18 15 / 94%);
+  box-shadow: 0 16px 45px rgb(0 0 0 / 55%);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+  direction: rtl;
+}
+
+.navigation a {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 15px;
+  color: #77736b;
+  flex-direction: column;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 150ms ease, background 150ms ease, transform 120ms ease;
+}
+
+.navigation a:active { transform: scale(.95); }
+.navigation svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+.navigation .active { color: #e5a329; background: linear-gradient(145deg, rgb(224 160 32 / 15%), rgb(224 160 32 / 5%)); }
+.navigation .active::after { position: absolute; bottom: 1px; width: 17px; height: 2px; border-radius: 2px; background: currentColor; content: ""; }
+.navigation b { position: absolute; top: 2px; right: calc(50% - 22px); display: grid; min-width: 18px; height: 18px; place-items: center; padding-inline: 4px; border: 2px solid #12120f; border-radius: 10px; color: #07150f; background: #20ce93; font-size: 9px; }
+
+@media (prefers-reduced-motion: reduce) { .navigation a { transition: none; } }
