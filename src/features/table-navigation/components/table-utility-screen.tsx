@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getLastSubmittedTableOrder } from "@/features/cart/services/local-draft-cart.service";
 import type { SubmittedTableOrder } from "@/features/cart/types/draft-cart";
+import { requestTableService } from "../services/table-service-request.service";
 import styles from "./table-utility-screen.module.css";
 
 export function OrderTrackingScreen({ tableId }: { tableId: number }) {
@@ -56,10 +58,17 @@ const serviceActions = [
 ] as const;
 
 export function TableServiceScreen({ tableId }: { tableId: number }) {
+  const router = useRouter();
   const [sentService, setSentService] = useState("");
 
-  function requestService(title: string) {
-    setSentService(title);
+  async function requestService(action: typeof serviceActions[number]) {
+    try {
+      await requestTableService(action.id);
+    } catch {
+      // Keep the confirmation usable while the customer is offline.
+    }
+    setSentService(action.title);
+    if (action.id === "bill") window.setTimeout(() => router.push(`/table/${tableId}/order?bill=1`), 450);
     window.setTimeout(() => setSentService(""), 2400);
   }
 
@@ -71,7 +80,7 @@ export function TableServiceScreen({ tableId }: { tableId: number }) {
       </section>
       <section className={styles.serviceGrid}>
         {serviceActions.map((action) => (
-          <button key={action.id} type="button" onClick={() => requestService(action.title)}>
+          <button key={action.id} type="button" onClick={() => void requestService(action)}>
             <i aria-hidden="true">{action.icon}</i>
             <strong>{action.title}</strong>
             <span lang="en">{action.subtitle}</span>

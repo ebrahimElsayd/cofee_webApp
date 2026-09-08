@@ -1,18 +1,13 @@
 "use client";
 
-import Image from "next/image";
+import { ResilientImage } from "@/shared/presentation/components/resilient-image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
-  addToLocalDraftCart,
   addToSharedDraftCart,
-  getLocalDraftCart,
-  getSharedDraftCart,
 } from "@/features/cart/services/local-draft-cart.service";
-import {
-  addLocalRecipientName,
-  getLocalRecipientNames,
-} from "@/features/table-session/services/local-recipient-names.service";
+import { getRecipientNames, saveRecipientName } from "@/features/table-session/services/guest-recipient-names.service";
 import { CustomizationGroup } from "./customization/customization-group";
 import {
   calculateCustomizationsPrice,
@@ -29,6 +24,7 @@ type ProductDetailsScreenProps = {
 };
 
 export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenProps) {
+  const router = useRouter();
   const [recipientDraft, setRecipientDraft] = useState("");
   const [recipientNames, setRecipientNames] = useState<string[]>([]);
   const [isRecipientSheetOpen, setIsRecipientSheetOpen] = useState(false);
@@ -41,6 +37,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
   const [showNotes, setShowNotes] = useState(false);
   const [customizationMessage, setCustomizationMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddedSheetOpen, setIsAddedSheetOpen] = useState(false);
 
   const customizationsPrice = calculateCustomizationsPrice(
     product.customizationGroups,
@@ -62,23 +59,26 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
     setCustomizationMessage("");
   }
 
-  function openRecipientSheet() {
-    setRecipientNames(getLocalRecipientNames(tableId));
-    setRecipientDraft("");
+  async function openRecipientSheet() {
     setRecipientSheetError("");
+    try {
+      setRecipientNames(await getRecipientNames(tableId));
+    } catch {
+      setRecipientNames([]);
+      setRecipientSheetError("تعذّر تحميل أسماء الضيوف");
+    }
+    setRecipientDraft("");
     setIsRecipientSheetOpen(true);
   }
 
   function chooseRecipient(name: string) {
-    const cleanRecipientName = name.trim().replace(/\s+/g, " ");
-
-    if (!cleanRecipientName) return;
+    const cleanRecipientName = name.trim().replace(/\s+/g, " ") || "Guest";
 
     setIsRecipientSheetOpen(false);
     void saveProductToCart(cleanRecipientName);
   }
 
-  function addRecipient() {
+  async function addRecipient() {
     const name = recipientDraft.trim();
 
     if (!name) {
@@ -86,9 +86,13 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
       return;
     }
 
-    const updatedNames = addLocalRecipientName(tableId, name);
-    setRecipientNames(updatedNames);
-    chooseRecipient(name);
+    try {
+      const updatedNames = await saveRecipientName(tableId, name);
+      setRecipientNames(updatedNames);
+      chooseRecipient(name);
+    } catch {
+      setRecipientSheetError("تعذّر حفظ الاسم. حاول مرة أخرى");
+    }
   }
 
   function requestAddProduct() {
@@ -106,7 +110,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
       return;
     }
 
-    openRecipientSheet();
+    void openRecipientSheet();
   }
 
   async function saveProductToCart(cleanRecipientName: string) {
@@ -133,23 +137,17 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
         unitPrice,
         totalPrice,
       };
-      const existingLocalItems = getLocalDraftCart(tableId);
-      const existingSharedItems = await getSharedDraftCart(tableId);
-      if (existingSharedItems.length === 0) {
-        for (const existingItem of existingLocalItems) {
-          await addToSharedDraftCart(existingItem);
-        }
-      }
-      const sharedItem = await addToSharedDraftCart(item);
-      addToLocalDraftCart({ ...item, productImageUrl: sharedItem.productImageUrl });
+      await addToSharedDraftCart(item);
 
       window.sessionStorage.setItem(
         "kings-cafe:last-added-product",
         JSON.stringify({ productName: product.name, productNameAr: product.nameAr }),
       );
-      const menuUrl = new URL(`/table/${tableId}/menu`, window.location.origin);
-      window.location.assign(menuUrl.toString());
-    } catch {
+      setIsSaving(false);
+      setIsRecipientSheetOpen(false);
+      setIsAddedSheetOpen(true);
+    } catch (error) {
+      console.error("[Cart] Failed to add product", error);
       setIsSaving(false);
       setCustomizationMessage("تعذّرت إضافة المنتج. حاول مرة أخرى.");
     }
@@ -159,14 +157,11 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
     <main className={styles.page}>
       <div className={styles.shell}>
         <section className={styles.hero}>
-          <Image
-            src={product.imageUrl}
+          <ResilientImage src={product.imageUrl} fallbackSrc={`/images/products/${product.slug}.webp`}
             alt={product.imageAlt}
             fill
             sizes="(max-width: 520px) 100vw, 480px"
-            priority
-            unoptimized
-          />
+            priority />
           <div className={styles.heroOverlay} aria-hidden="true" />
 
           <Link className={styles.backButton} href={`/table/${tableId}/menu`} aria-label="العودة إلى القائمة">
@@ -200,6 +195,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
                 <CustomizationGroup
                   group={group}
                   selectedOptionId={selections[group.id]}
+                  highlightSelection
                   onChange={(optionId) =>
                     selectCustomization(group.id, optionId, group.required)
                   }
@@ -265,9 +261,12 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
                 <div className={styles.savedNames}>
                   <p>اختر اسمًا لإتمام الإضافة</p>
                   <div>{recipientNames.map((name) => (
-                    <button key={name} type="button" onClick={() => chooseRecipient(name)}>
-                      <span>{name.charAt(0).toUpperCase()}</span><b>{name}</b>
-                    </button>
+                    <div key={name} className={styles.savedNameItem}>
+                      <button type="button" onClick={() => chooseRecipient(name)}>
+                        <span>{name.charAt(0).toUpperCase()}</span><b>{name}</b>
+                      </button>
+                      <button type="button" className={styles.removeNameButton} onClick={() => setRecipientNames((current) => current.filter((item) => item !== name))} aria-label={`إخفاء اسم ${name}`}>×</button>
+                    </div>
                   ))}</div>
                 </div>
               )}
@@ -288,6 +287,21 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
                   <button type="button" onClick={addRecipient}><span aria-hidden="true">+</span> تأكيد</button>
                 </div>
                 {recipientSheetError && <p role="alert">{recipientSheetError}</p>}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {isAddedSheetOpen && (
+          <div className={styles.addedBackdrop} role="dialog" aria-modal="true" aria-labelledby="added-title">
+            <section className={styles.addedSheet}>
+              <div className={styles.addedIcon} aria-hidden="true">✓</div>
+              <p>تمت الإضافة بنجاح</p>
+              <h2 id="added-title">طلبك أصبح في كارت الطاولة</h2>
+              <small>تقدر تضيف مشروبات أخرى أو تراجع كل طلبات الطاولة.</small>
+              <div className={styles.addedActions}>
+                <Link href={`/table/${tableId}/cart`} onClick={() => setIsAddedSheetOpen(false)}>عرض الكارت</Link>
+                <button type="button" onClick={() => { setIsAddedSheetOpen(false); router.push(`/table/${tableId}/menu`); }}>إضافة المزيد</button>
               </div>
             </section>
           </div>

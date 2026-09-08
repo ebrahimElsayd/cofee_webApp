@@ -1,16 +1,16 @@
 "use client";
 
-import Image from "next/image";
+import { ResilientImage } from "@/shared/presentation/components/resilient-image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   getSharedDraftCart,
-  getLocalDraftCart,
   removeFromSharedDraftCart,
-  removeLocalDraftCartItem,
-  submitLocalTableOrder,
+  submitSupabaseTableOrder,
 } from "../services/local-draft-cart.service";
 import type { DraftCartItem } from "../types/draft-cart";
+import { selectedCustomizationLabel } from "../utils/selected-customization-labels";
 import styles from "./cart-screen.module.css";
 
 type RecipientOrder = {
@@ -21,16 +21,17 @@ type RecipientOrder = {
 };
 
 export function CartScreen({ tableId }: { tableId: number }) {
+  const router = useRouter();
   const [items, setItems] = useState<DraftCartItem[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [splitBill, setSplitBill] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     function refreshCart() {
-      void getSharedDraftCart(tableId)
-        .then((sharedItems) => setItems(sharedItems.length > 0 ? sharedItems : getLocalDraftCart(tableId)))
-        .catch(() => setItems(getLocalDraftCart(tableId)));
+      void getSharedDraftCart(tableId).then(setItems).catch(() => setItems([]));
       setIsReady(true);
     }
 
@@ -49,20 +50,32 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const tableHost = recipientOrders[0]?.recipientName ?? "";
 
-  function removeItem(itemId: string) {
-    void removeFromSharedDraftCart(tableId, itemId);
-    setItems(removeLocalDraftCartItem(tableId, itemId));
+  async function removeItem(itemId: string) {
+    try {
+      await removeFromSharedDraftCart(tableId, itemId);
+      setItems(await getSharedDraftCart(tableId));
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "تعذر حذف المنتج");
+    }
   }
 
-  function sendCombinedOrder() {
-    if (!tableHost || items.length === 0 || submittedOrderId) return;
+  async function sendCombinedOrder() {
+    if (!tableHost || items.length === 0 || submittedOrderId || isSubmitting) return;
 
-    const order = submitLocalTableOrder({
-      tableId,
-      items,
-      submittedBy: tableHost,
-    });
-    setSubmittedOrderId(order.id);
+    setIsSubmitting(true);
+    setSubmitError("");
+    try {
+      // A failed Supabase write must never silently fall back to local storage:
+      // that makes the customer see success while the cashier receives nothing.
+      const order = await submitSupabaseTableOrder({ tableId, items, submittedBy: tableHost });
+      setItems([]);
+      setSubmittedOrderId(order.id);
+      window.setTimeout(() => router.push(`/table/${tableId}/order`), 900);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب للكاشير");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -149,7 +162,8 @@ export function CartScreen({ tableId }: { tableId: number }) {
             </section>
 
             <footer className={styles.actions}>
-              <button type="button" onClick={sendCombinedOrder} disabled={Boolean(submittedOrderId)}>
+              {submitError && <p role="alert" className={styles.submitError}>{submitError}</p>}
+              <button type="button" onClick={sendCombinedOrder} disabled={Boolean(submittedOrderId) || isSubmitting}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z" /><path d="m10.2 13.8 4-4" /></svg>
                 <span><strong lang="en">Send Combined Table Order</strong><small>إرسال طلب الطاولة مرة واحدة للكاشير</small></span>
                 <b>{itemCount}<small>items</small></b>
@@ -172,7 +186,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
             <p>تم إرسال الطلب للكاشير</p>
             <h2 id="order-success-title" lang="en">Order Sent Successfully</h2>
             <small lang="en">#{submittedOrderId}</small>
-            <Link href={`/table/${tableId}/menu`}>Back to Menu <i>العودة للقائمة</i></Link>
+            <Link href={`/table/${tableId}/order`}>Track Order <i>متابعة الطلب</i></Link>
           </div>
         </section>
       )}
@@ -229,7 +243,7 @@ function RecipientOrderCard({
         {order.items.map((item) => (
           <div className={styles.orderItem} key={item.id}>
             <div className={styles.productImage}>
-              <Image src={getProductImageUrl(item)} alt="" fill sizes="48px" unoptimized />
+              <ResilientImage src={item.productImageUrl} fallbackSrc={`/images/products/${item.productSlug}.webp`} alt="" fill sizes="48px" />
             </div>
             <div className={styles.productCopy}>
               <h3 lang="en">{item.productName}</h3>
@@ -283,18 +297,7 @@ function getInitial(name: string) {
 
 function getItemDetails(item: DraftCartItem) {
   const optionLabels = Array.isArray(item.selectedOptions)
-    ? item.selectedOptions.map((option) => option.optionLabelAr).filter(Boolean)
+    ? item.selectedOptions.map((option) => selectedCustomizationLabel(option)).filter(Boolean)
     : [];
   return [item.productNameAr, ...optionLabels].filter(Boolean).join(" · ");
-}
-
-function getProductImageUrl(item: DraftCartItem) {
-  if (
-    typeof item.productImageUrl === "string" &&
-    item.productImageUrl.startsWith("/")
-  ) {
-    return item.productImageUrl;
-  }
-
-  return `/images/products/${item.productSlug}.webp`;
 }

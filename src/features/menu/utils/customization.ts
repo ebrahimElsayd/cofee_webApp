@@ -7,7 +7,6 @@ export function createDefaultSelections(groups: CustomizationGroup[]): ProductSe
   return Object.fromEntries(
     groups.flatMap((group) => {
       if (!group.required) return [];
-
       const firstAvailableOption = group.options.find((option) => option.available);
       return firstAvailableOption ? [[group.id, firstAvailableOption.id]] : [];
     }),

@@ -1,6 +1,5 @@
-import { notFound, redirect } from "next/navigation";
-import { ProductDetailsScreen } from "@/features/menu/components/product-details-screen";
-import { menuProducts } from "@/features/menu/data/menu.data";
+import { redirect } from "next/navigation";
+import { ProductDetailsRoute } from "@/features/menu/components/product-details-route";
 import { isValidTableId } from "@/features/table-session/services/local-table-session.service";
 
 type ProductDetailsPageProps = {
@@ -14,11 +13,5 @@ export default async function ProductDetailsPage({ params }: ProductDetailsPageP
     redirect(`/table/${encodeURIComponent(tableId)}`);
   }
 
-  const product = menuProducts.find((item) => item.slug === productSlug);
-
-  if (!product || product.availability === "sold-out") {
-    notFound();
-  }
-
-  return <ProductDetailsScreen product={product} tableId={Number(tableId)} />;
+  return <ProductDetailsRoute productSlug={productSlug} tableId={Number(tableId)} />;
 }

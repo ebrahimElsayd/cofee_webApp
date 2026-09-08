@@ -1,14 +1,16 @@
 "use client";
 
-import Image from "next/image";
+import { ResilientImage } from "@/shared/presentation/components/resilient-image";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   getCartUpdatedEventName,
-  getLocalDraftCart,
+  getSharedDraftCart,
 } from "@/features/cart/services/local-draft-cart.service";
-import { menuCategories, menuProducts } from "../data/menu.data";
+import { getCachedMenuCatalog, getSupabaseMenuCatalog, subscribeToMenuCatalog } from "../services/supabase-menu.service";
 import type { MenuCategoryId, MenuProduct } from "../types/menu";
+import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
 import styles from "./menu-screen.module.css";
 
 type MenuScreenProps = {
@@ -16,12 +18,51 @@ type MenuScreenProps = {
 };
 
 export function MenuScreen({ tableId }: MenuScreenProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const initialCatalog = getCachedMenuCatalog();
   const [activeCategory, setActiveCategory] = useState<MenuCategoryId>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [cartSummary, setCartSummary] = useState({ items: 0, total: 0 });
   const [addedMessage, setAddedMessage] = useState("");
+  const [catalogCategories, setCatalogCategories] = useState<{ id: MenuCategoryId; label: string; labelAr: string }[]>(initialCatalog?.categories ?? []);
+  const [catalogProducts, setCatalogProducts] = useState<MenuProduct[]>(initialCatalog?.products ?? []);
+  const [catalogError, setCatalogError] = useState("");
+  const [isCatalogLoading, setIsCatalogLoading] = useState(!initialCatalog);
+
+  // Route changes represent a new menu visit; reset transient filters.
+  useEffect(() => {
+    // A fresh visit to the menu must never inherit a previous search or category.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearchQuery("");
+    setActiveCategory("all");
+  }, [pathname, tableId]);
 
   useEffect(() => {
+    let active = true;
+    const session = getStoredTableSession();
+    if (!session || session.tableId !== tableId) {
+      router.replace("/");
+      return () => { active = false; };
+    }
+    const applyCatalog = (catalog: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>) => {
+      if (!active) return;
+      setCatalogCategories(catalog.categories);
+      setCatalogProducts(catalog.products);
+      setCatalogError("");
+      setIsCatalogLoading(false);
+    };
+    const refreshCatalog = (forceRefresh = false) => getSupabaseMenuCatalog({ forceRefresh }).then(applyCatalog);
+
+    void refreshCatalog()
+      .catch(() => { if (active) { setCatalogError("تعذر تحميل قائمة المنتجات من الخادم."); setIsCatalogLoading(false); } });
+    const unsubscribeCatalog = subscribeToMenuCatalog((catalog) => {
+      if (!active) return;
+      setCatalogCategories(catalog.categories);
+      setCatalogProducts(catalog.products);
+      setCatalogError("");
+      setIsCatalogLoading(false);
+    });
     let messageTimer: number | undefined;
     let hideMessageTimer: number | undefined;
     try {
@@ -44,11 +85,12 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
     }
 
     function refreshCartSummary() {
-      const cart = getLocalDraftCart(tableId);
-      setCartSummary({
-        items: cart.reduce((total, item) => total + item.quantity, 0),
-        total: cart.reduce((total, item) => total + item.totalPrice, 0),
-      });
+      void getSharedDraftCart(tableId)
+        .then((cart) => setCartSummary({
+          items: cart.reduce((total, item) => total + item.quantity, 0),
+          total: cart.reduce((total, item) => total + item.totalPrice, 0),
+        }))
+        .catch(() => setCartSummary({ items: 0, total: 0 }));
     }
 
     const initialTimer = window.setTimeout(refreshCartSummary, 0);
@@ -56,17 +98,19 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
     window.addEventListener(eventName, refreshCartSummary);
 
     return () => {
+      active = false;
+      unsubscribeCatalog();
       window.clearTimeout(initialTimer);
       if (messageTimer) window.clearTimeout(messageTimer);
       if (hideMessageTimer) window.clearTimeout(hideMessageTimer);
       window.removeEventListener(eventName, refreshCartSummary);
     };
-  }, [tableId]);
+  }, [router, tableId]);
 
   const visibleProducts = useMemo(() => {
     const query = normalizeText(searchQuery);
 
-    return menuProducts.filter((product) => {
+    return catalogProducts.filter((product) => {
       const matchesCategory =
         activeCategory === "all" || product.categoryId === activeCategory;
 
@@ -79,7 +123,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
 
       return searchableText.includes(query);
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, catalogProducts, searchQuery]);
 
   return (
     <main className={styles.page}>
@@ -126,7 +170,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
         </label>
 
         <nav className={styles.categories} aria-label="تصنيفات القائمة">
-          {menuCategories.map((category) => {
+          {catalogCategories.map((category) => {
             const isActive = category.id === activeCategory;
 
             return (
@@ -144,7 +188,9 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
           })}
         </nav>
 
-        {visibleProducts.length > 0 ? (
+        {catalogError ? <section className={styles.emptyState} role="alert"><h2>{catalogError}</h2><p>تحقق من اتصال التطبيق ثم أعد المحاولة.</p></section> : isCatalogLoading ? (
+          <section className={styles.emptyState} aria-busy="true"><h2>جاري تحميل القائمة…</h2><p>لحظات ونجهز لك المشروبات.</p></section>
+        ) : visibleProducts.length > 0 ? (
           <section className={styles.productGrid} aria-label="منتجات القائمة">
             {visibleProducts.map((product, index) => (
               <ProductCard key={product.id} product={product} tableId={tableId} priority={index < 2} />
@@ -162,16 +208,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
           </a>
         )}
 
-        <aside className={`${styles.presenceCard} ${cartSummary.items > 0 ? styles.presenceWithCart : ""}`} aria-label="الأشخاص الموجودون على الطاولة">
-          <div className={styles.avatars} aria-hidden="true">
-            <span>Y</span><span>A</span><span>S</span>
-          </div>
-          <div>
-            <strong lang="en">3 Friends ordering on this table</strong>
-            <small>بيطلبوا على نفس الطاولة</small>
-          </div>
-          <b lang="en"><i aria-hidden="true" /> LIVE</b>
-        </aside>
+
       </div>
     </main>
   );
@@ -190,14 +227,11 @@ function ProductCard({
   const content = (
     <>
       <div className={styles.productImage}>
-        <Image
-          src={product.imageUrl}
+        <ResilientImage src={product.imageUrl} fallbackSrc={`/images/products/${product.slug}.webp`}
           alt={product.imageAlt}
           fill
           sizes="(max-width: 520px) 46vw, 220px"
-          priority={priority}
-          unoptimized
-        />
+          priority={priority} />
         {product.badge && <span className={styles.productBadge}>{product.badge}</span>}
         {isSoldOut && <span className={styles.soldOut}>نفد مؤقتًا</span>}
       </div>

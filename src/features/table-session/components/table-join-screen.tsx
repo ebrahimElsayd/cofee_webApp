@@ -13,14 +13,17 @@ type JoinStatus = "identifying" | "joining" | "success" | "invalid" | "error";
 
 type TableJoinScreenProps = {
   rawTableId: string;
+  cafeId?: string;
+  tableToken?: string;
 };
 
 const IDENTIFYING_DURATION_MS = 550;
 
-export function TableJoinScreen({ rawTableId }: TableJoinScreenProps) {
+export function TableJoinScreen({ rawTableId, cafeId, tableToken }: TableJoinScreenProps) {
   const router = useRouter();
   const [status, setStatus] = useState<JoinStatus>("identifying");
   const [tableNumber, setTableNumber] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const attemptRef = useRef(0);
   const redirectTimerRef = useRef<number | null>(null);
 
@@ -32,6 +35,7 @@ export function TableJoinScreen({ rawTableId }: TableJoinScreenProps) {
     }
     setStatus("identifying");
     setTableNumber(null);
+    setErrorMessage(undefined);
 
     await new Promise((resolve) => window.setTimeout(resolve, IDENTIFYING_DURATION_MS));
 
@@ -46,7 +50,7 @@ export function TableJoinScreen({ rawTableId }: TableJoinScreenProps) {
     setStatus("joining");
 
     try {
-      const session = await resolveLocalTableSession(rawTableId);
+      const session = await resolveLocalTableSession(rawTableId, cafeId, tableToken);
 
       if (currentAttempt !== attemptRef.current) return;
 
@@ -59,13 +63,22 @@ export function TableJoinScreen({ rawTableId }: TableJoinScreenProps) {
     } catch (error) {
       if (currentAttempt !== attemptRef.current) return;
 
+      setErrorMessage(
+        error instanceof TableSessionError && error.code === "AMBIGUOUS_TABLE"
+          ? "هذا الرقم موجود في أكثر من كافيه. استخدم رمز QR الخاص بالطاولة."
+          : error instanceof TableSessionError && error.code === "MISSING_CAFE_SCOPE"
+            ? "استخدم رمز QR الخاص بالطاولة لبدء جلسة آمنة."
+            : error instanceof TableSessionError && error.code === "SERVICE_UNAVAILABLE"
+              ? error.message
+              : undefined,
+      );
       setStatus(
-        error instanceof TableSessionError && error.code === "INVALID_TABLE"
+        error instanceof TableSessionError && (error.code === "INVALID_TABLE" || error.code === "MISSING_CAFE_SCOPE")
           ? "invalid"
           : "error",
       );
     }
-  }, [rawTableId, router]);
+  }, [cafeId, rawTableId, router, tableToken]);
 
   useEffect(() => {
     const startTimer = window.setTimeout(() => {
@@ -119,7 +132,7 @@ export function TableJoinScreen({ rawTableId }: TableJoinScreenProps) {
               </div>
             )}
 
-            <StatusCopy status={status} />
+            <StatusCopy status={status} errorMessage={errorMessage} />
 
             {isFailure && (
               <button className={styles.retryButton} type="button" onClick={() => void joinTable()}>
@@ -169,7 +182,7 @@ function ErrorIndicator() {
   );
 }
 
-function StatusCopy({ status }: { status: JoinStatus }) {
+function StatusCopy({ status, errorMessage }: { status: JoinStatus; errorMessage?: string }) {
   const content = {
     identifying: {
       title: "جارٍ التعرّف على الطاولة...",
@@ -197,7 +210,7 @@ function StatusCopy({ status }: { status: JoinStatus }) {
     <div className={styles.statusCopy}>
       <h1 id="join-title">{content.title}</h1>
       <p lang={status === "identifying" || status === "joining" || status === "success" ? "en" : "ar"}>
-        {content.support}
+        {errorMessage ?? content.support}
       </p>
     </div>
   );

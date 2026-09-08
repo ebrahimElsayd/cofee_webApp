@@ -388,64 +388,6 @@
 .cartBar > b { font-size: 18px; white-space: nowrap; }
 .cartBar > b small { display: inline; font-size: 9px; }
 
-.presenceCard {
-  position: relative;
-  z-index: 4;
-  bottom: auto;
-  display: flex;
-  min-height: 50px;
-  align-items: center;
-  gap: 9px;
-  margin-top: 13px;
-  padding: 8px 11px;
-  border: 1px solid #3a3427;
-  border-radius: 14px;
-  background: rgb(23 23 20 / 94%);
-  box-shadow: 0 12px 34px rgb(0 0 0 / 34%);
-  backdrop-filter: blur(16px);
-  direction: ltr;
-  animation: floating-card-in 520ms 320ms cubic-bezier(.2,.8,.2,1) both;
-}
-
-.presenceWithCart { margin-top: 8px; }
-
-.avatars { position: relative; width: 55px; height: 25px; flex: 0 0 55px; }
-
-.avatars span {
-  position: absolute;
-  top: 0;
-  display: grid;
-  width: 25px;
-  height: 25px;
-  place-items: center;
-  border: 1px solid #18ca8d;
-  border-radius: 50%;
-  color: #18ca8d;
-  background: #173027;
-  font-size: 8px;
-}
-
-.avatars span:nth-child(2) { left: 16px; border-color: #dfa01e; color: #dfa01e; background: #33260f; }
-.avatars span:nth-child(3) { left: 32px; border-color: #7668d7; color: #b6aefa; background: #28233c; }
-
-.presenceCard > div:nth-child(2) {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-}
-
-.presenceCard strong {
-  overflow: hidden;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.presenceCard small { margin-top: 2px; color: #918d84; direction: rtl; font-size: 10px; text-align: left; }
-.presenceCard > b { color: #18ca8d; font-size: 9px; white-space: nowrap; }
-.presenceCard > b i { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; }
-
 .emptyState {
   display: flex;
   min-height: 320px;

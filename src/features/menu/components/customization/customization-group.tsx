@@ -4,12 +4,14 @@ import styles from "../product-details-screen.module.css";
 type CustomizationGroupProps = {
   group: CustomizationGroupType;
   selectedOptionId?: string;
+  highlightSelection?: boolean;
   onChange: (optionId: string) => void;
 };
 
 export function CustomizationGroup({
   group,
   selectedOptionId,
+  highlightSelection = true,
   onChange,
 }: CustomizationGroupProps) {
   const availableOptions = group.options.filter((option) => option.available);
@@ -30,15 +32,15 @@ export function CustomizationGroup({
           <div><strong>غير متاح حاليًا</strong><small>لا توجد اختيارات متاحة في هذه المجموعة.</small></div>
         </div>
       ) : group.display === "curve" ? (
-        <CurveOptions group={group} selectedOptionId={selectedOptionId} onChange={onChange} />
+        <CurveOptions group={group} selectedOptionId={selectedOptionId} highlightSelection={highlightSelection} onChange={onChange} />
       ) : (
-        <ChoiceOptions group={group} selectedOptionId={selectedOptionId} onChange={onChange} />
+        <ChoiceOptions group={group} selectedOptionId={selectedOptionId} highlightSelection={highlightSelection} onChange={onChange} />
       )}
     </section>
   );
 }
 
-function ChoiceOptions({ group, selectedOptionId, onChange }: CustomizationGroupProps) {
+function ChoiceOptions({ group, selectedOptionId, highlightSelection = true, onChange }: CustomizationGroupProps) {
   const className = group.display === "cards" ? styles.dynamicCards : styles.segmentedOptions;
 
   return (
@@ -49,7 +51,7 @@ function ChoiceOptions({ group, selectedOptionId, onChange }: CustomizationGroup
           <button
             key={option.id}
             type="button"
-            className={selected ? styles.selectedOption : undefined}
+            className={highlightSelection && selected ? styles.selectedOption : undefined}
             aria-pressed={selected}
             disabled={!option.available}
             onClick={() => onChange(option.id)}
@@ -64,8 +66,8 @@ function ChoiceOptions({ group, selectedOptionId, onChange }: CustomizationGroup
   );
 }
 
-function CurveOptions({ group, selectedOptionId, onChange }: CustomizationGroupProps) {
-  const selectedIndex = Math.max(0, group.options.findIndex((option) => option.id === selectedOptionId));
+function CurveOptions({ group, selectedOptionId, highlightSelection = true, onChange }: CustomizationGroupProps) {
+  const selectedIndex = highlightSelection ? Math.max(0, group.options.findIndex((option) => option.id === selectedOptionId)) : 0;
   const progress = group.options.length > 1 ? (selectedIndex / (group.options.length - 1)) * 100 : 100;
 
   return (
@@ -81,7 +83,7 @@ function CurveOptions({ group, selectedOptionId, onChange }: CustomizationGroupP
             <button
               key={option.id}
               type="button"
-              className={selected ? styles.activeSugarPoint : undefined}
+              className={highlightSelection && selected ? styles.activeSugarPoint : undefined}
               aria-pressed={selected}
               disabled={!option.available}
               aria-label={`${group.labelAr}: ${option.labelAr}`}

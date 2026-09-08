@@ -433,3 +433,22 @@
   .selectedOption,
   .activeSugarPoint i { animation: none; }
 }
+
+.addedBackdrop { position: fixed; z-index: 40; inset: 0; display: grid; align-items: end; justify-items: center; padding: 18px; background: rgb(0 0 0 / 64%); animation: added-fade 180ms ease-out both; }
+.addedSheet { width: min(100%, 430px); padding: 26px 20px 20px; border: 1px solid rgb(32 206 147 / 35%); border-radius: 26px 26px 18px 18px; background: linear-gradient(145deg, #18251f, #12130f); box-shadow: 0 -18px 45px rgb(0 0 0 / 35%); text-align: center; animation: added-up 360ms cubic-bezier(.2,.8,.2,1) both; }
+.addedIcon { display: grid; width: 58px; height: 58px; place-items: center; margin: 0 auto 12px; border: 2px solid #20ce93; border-radius: 50%; color: #07150f; background: #20ce93; font-size: 30px; font-weight: 900; box-shadow: 0 0 0 8px rgb(32 206 147 / 10%), 0 0 28px rgb(32 206 147 / 27%); animation: added-pop 520ms cubic-bezier(.2,.8,.2,1) 120ms both; }
+.addedSheet p { margin: 0; color: #55dfad; font-size: 11px; font-weight: 800; }
+.addedSheet h2 { margin: 7px 0; color: #f4f0e8; font-size: 20px; }
+.addedSheet > small { display: block; color: #aaa69d; font-size: 11px; line-height: 1.7; }
+.addedActions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 19px; }
+.addedActions a, .addedActions button { display: grid; min-height: 47px; place-items: center; border: 1px solid #b9811c; border-radius: 13px; color: #1b1307; background: #dfa01e; font: inherit; font-size: 12px; font-weight: 900; text-decoration: none; cursor: pointer; }
+.addedActions button { border-color: #3b3a32; color: #eee9df; background: #24241f; }
+.savedNameItem { position: relative; display: flex; min-width: 150px; align-items: center; }
+.savedNameItem > button:first-child { min-width: 0; flex: 1; padding-right: 25px; }
+.removeNameButton { position: absolute; z-index: 2; top: 5px; right: 5px; display: grid; width: 16px !important; min-width: 16px !important; height: 16px !important; place-items: center; padding: 0 !important; border: 1px solid #765344 !important; border-radius: 50% !important; color: #d9a394 !important; background: #30221d !important; font-size: 10px !important; line-height: 1; }
+.guestOption { display: flex; width: 100%; align-items: center; justify-content: space-between; margin: 4px 0 16px; padding: 11px 13px; border: 1px dashed #5b461c; border-radius: 12px; color: #e7bd63; background: #20190d; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.guestOption small { color: #948b7a; font-size: 10px; font-weight: 500; }
+.nameHint { margin: 0 0 7px; color: #e0a020; font-size: 11px; font-weight: 800; }
+@keyframes added-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes added-up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes added-pop { from { opacity: 0; transform: scale(.55); } 70% { transform: scale(1.08); } to { opacity: 1; transform: scale(1); } }
