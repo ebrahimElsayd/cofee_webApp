@@ -17,6 +17,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
   const [ready, setReady] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
   const [billReminderAvailable, setBillReminderAvailable] = useState(false);
+  const [billReminderCycle, setBillReminderCycle] = useState(0);
 
   const activeItems = useMemo(() => order?.items.filter((item) => getItemStatus(item) !== "cancelled") ?? [], [order]);
   const readyItems = activeItems.filter((item) => ["ready", "served"].includes(getItemStatus(item))).length;
@@ -37,6 +38,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
       await requestTableService("bill");
       setBillRequested(true);
       setBillReminderAvailable(false);
+      setBillReminderCycle((cycle) => cycle + 1);
     } catch { /* keep the action retryable when the request did not reach Supabase */ }
   }
 
@@ -44,7 +46,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
     if (!billRequested) return;
     const timer = window.setTimeout(() => setBillReminderAvailable(true), 120_000);
     return () => window.clearTimeout(timer);
-  }, [billRequested]);
+  }, [billRequested, billReminderCycle]);
 
   useEffect(() => {
     let active = true;
