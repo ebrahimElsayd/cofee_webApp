@@ -16,6 +16,8 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
   const [order, setOrder] = useState<SubmittedTableOrder | null>(null);
   const [ready, setReady] = useState(false);
   const [billRequested, setBillRequested] = useState(false);
+  const [billReminderAvailable, setBillReminderAvailable] = useState(false);
+  const [billReminderCycle, setBillReminderCycle] = useState(0);
 
   const activeItems = useMemo(() => order?.items.filter((item) => getItemStatus(item) !== "cancelled") ?? [], [order]);
   const readyItems = activeItems.filter((item) => ["ready", "served"].includes(getItemStatus(item))).length;
@@ -31,10 +33,20 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
   const payableTotal = activeItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
   async function requestBill() {
-    if (billRequested || !allReady) return;
-    try { await requestTableService("bill"); } catch { /* keep confirmation usable offline */ }
-    setBillRequested(true);
+    if ((billRequested && !billReminderAvailable) || !allReady) return;
+    try {
+      await requestTableService("bill");
+      setBillRequested(true);
+      setBillReminderAvailable(false);
+      setBillReminderCycle((cycle) => cycle + 1);
+    } catch { /* keep the action retryable when the request did not reach Supabase */ }
   }
+
+  useEffect(() => {
+    if (!billRequested) return;
+    const timer = window.setTimeout(() => setBillReminderAvailable(true), 120_000);
+    return () => window.clearTimeout(timer);
+  }, [billRequested, billReminderCycle]);
 
   useEffect(() => {
     let active = true;
@@ -124,9 +136,9 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
                 );
               })}
             </section>
-            <button type="button" className={styles.billButton} onClick={() => void requestBill()} disabled={billRequested || !allReady}>
+            <button type="button" className={styles.billButton} onClick={() => void requestBill()} disabled={(billRequested && !billReminderAvailable) || !allReady}>
               <span aria-hidden="true">▣</span>
-              <strong>{billRequested ? "تم طلب الحساب" : allReady ? "إنهاء الجلسة وطلب الحساب" : "الحساب بعد جاهزية الطلب"}</strong>
+              <strong>{billRequested ? (billReminderAvailable ? "تذكير الكاشير" : "تم طلب الحساب") : allReady ? "إنهاء الجلسة وطلب الحساب" : "الحساب بعد جاهزية الطلب"}</strong>
               <small>{billRequested ? "سيأتي الباريستا لمراجعة الحساب" : allReady ? "الحساب التفصيلي لكل شخص ومشروبه" : "انتظر حتى تصبح كل المشروبات جاهزة"}</small>
             </button>
             <p className={styles.serviceNote}>عند جاهزية أي مشروب ستتغير بطاقته إلى «جاهز». استلمه من الكاونتر أو انتظر النادل حسب نظام الكافيه.</p>
