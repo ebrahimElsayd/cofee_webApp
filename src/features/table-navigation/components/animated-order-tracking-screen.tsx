@@ -32,8 +32,10 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
 
   async function requestBill() {
     if (billRequested || !allReady) return;
-    try { await requestTableService("bill"); } catch { /* keep confirmation usable offline */ }
-    setBillRequested(true);
+    try {
+      await requestTableService("bill");
+      setBillRequested(true);
+    } catch { /* keep the action retryable when the request did not reach Supabase */ }
   }
 
   useEffect(() => {
