@@ -37,7 +37,7 @@ export function ResilientImage({ src, fallbackSrc, fallbackLabel = "☕", alt = 
       src={currentSrc}
       alt={alt}
       className={className}
-      unoptimized
+      unoptimized={currentSrc.startsWith("data:image/")}
       onError={(event) => {
         onError?.(event);
         if (fallback && currentSrc !== fallback) setCurrentSrc(fallback);
