@@ -2,18 +2,24 @@ import type { NextConfig } from "next";
 
 function productImageRemotePattern() {
   const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!configuredUrl) return [];
+  const patterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [{
+    protocol: "https",
+    hostname: "**.supabase.co",
+    pathname: "/storage/v1/object/public/product-images/**",
+  }];
+  if (!configuredUrl) return patterns;
   try {
     const url = new URL(configuredUrl);
-    if (url.protocol !== "https:") return [];
-    return [{
+    if (url.protocol !== "https:") return patterns;
+    patterns.push({
       protocol: "https" as const,
       hostname: url.hostname,
       port: url.port,
       pathname: "/storage/v1/object/public/product-images/**",
-    }];
+    });
+    return patterns;
   } catch {
-    return [];
+    return patterns;
   }
 }
 
