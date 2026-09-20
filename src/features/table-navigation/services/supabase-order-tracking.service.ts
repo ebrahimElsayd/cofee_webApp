@@ -118,7 +118,13 @@ async function validateSessionForTable(tableId: number): Promise<ValidatedSessio
   if (result.error) throw result.error;
   const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
   const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
-  if (!row || !table || !ACTIVE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+  let effectiveStatus = row?.status;
+  if (row?.status === "payment_pending") {
+    const paid = await supabase.from("payments").select("id").eq("session_id", row.id).eq("status", "paid").limit(1).maybeSingle();
+    if (paid.error) throw paid.error;
+    if (!paid.data) effectiveStatus = "ordering";
+  }
+  if (!row || !table || !ACTIVE_SESSION_STATUSES.has(effectiveStatus ?? "") || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
     const globalPointer = getActiveTableSessionPointer();
     if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
     window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
@@ -128,7 +134,7 @@ async function validateSessionForTable(tableId: number): Promise<ValidatedSessio
     throw new TableSessionClosedError();
   }
   validatedSession = { sessionId: pointer.sessionId, checkedAt: Date.now() };
-  return { ...pointer, status: row.status as ValidatedSession["status"] };
+  return { ...pointer, status: effectiveStatus as ValidatedSession["status"] };
 }
 
 export async function validateActiveTableSession(tableId: number): Promise<void> {

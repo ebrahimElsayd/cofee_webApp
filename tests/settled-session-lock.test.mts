@@ -28,3 +28,12 @@ test("customer UI explains the paid-session lock instead of suggesting a retry",
   assert.match(screen, /اطلب من الكاشير إغلاق الطاولة/);
   assert.match(screen, /payment_pending/);
 });
+
+test("payment_pending is locked only when a paid payment record exists", async () => {
+  const sql = await readFile(new URL("supabase/migrations/202609210001_reconcile_unpaid_payment_pending_sessions.sql", root), "utf8");
+  assert.match(sql, /session_has_paid_payment/);
+  assert.match(sql, /status = 'payment_pending'[\s\S]*not public\.session_has_paid_payment/);
+  const cart = await readFile(new URL("src/features/cart/services/local-draft-cart.service.ts", root), "utf8");
+  assert.match(cart, /from\("payments"\)/);
+  assert.match(cart, /eq\("status", "paid"\)/);
+});

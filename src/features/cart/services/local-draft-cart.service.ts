@@ -394,7 +394,17 @@ async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
   const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
   const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
   if (row?.status === "payment_pending") {
-    throw new Error("تم دفع حساب هذه الجلسة. اطلب من الكاشير إغلاق الطاولة قبل بدء طلب جديد.");
+    const paid = await withCartTimeout(supabase
+      .from("payments")
+      .select("id")
+      .eq("session_id", row.id)
+      .eq("status", "paid")
+      .limit(1)
+      .maybeSingle());
+    if (paid.error) throw paid.error;
+    if (paid.data) {
+      throw new Error("تم دفع حساب هذه الجلسة. اطلب من الكاشير إغلاق الطاولة قبل بدء طلب جديد.");
+    }
   }
   if (!row || !table || !ORDERABLE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
     resetLocalTableContext(pointer, tableId);
