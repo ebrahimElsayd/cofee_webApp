@@ -20,15 +20,14 @@ type MenuScreenProps = {
 export function MenuScreen({ tableId }: MenuScreenProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const initialCatalog = getCachedMenuCatalog();
   const [activeCategory, setActiveCategory] = useState<MenuCategoryId>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [cartSummary, setCartSummary] = useState({ items: 0, total: 0 });
   const [addedMessage, setAddedMessage] = useState("");
-  const [catalogCategories, setCatalogCategories] = useState<{ id: MenuCategoryId; label: string; labelAr: string }[]>(initialCatalog?.categories ?? []);
-  const [catalogProducts, setCatalogProducts] = useState<MenuProduct[]>(initialCatalog?.products ?? []);
+  const [catalogCategories, setCatalogCategories] = useState<{ id: MenuCategoryId; label: string; labelAr: string }[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<MenuProduct[]>([]);
   const [catalogError, setCatalogError] = useState("");
-  const [isCatalogLoading, setIsCatalogLoading] = useState(!initialCatalog);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
 
   // Route changes represent a new menu visit; reset transient filters.
   useEffect(() => {
@@ -40,6 +39,17 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
 
   useEffect(() => {
     let active = true;
+    // Read browser storage only after hydration so SSR and the first client
+    // render produce identical markup.
+    const cachedCatalog = getCachedMenuCatalog();
+    if (cachedCatalog) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setCatalogCategories(cachedCatalog.categories);
+        setCatalogProducts(cachedCatalog.products);
+        setIsCatalogLoading(false);
+      });
+    }
     const session = getStoredTableSession();
     if (!session || session.tableId !== tableId) {
       router.replace("/");
