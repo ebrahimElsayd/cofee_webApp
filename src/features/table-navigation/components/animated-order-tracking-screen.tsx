@@ -54,10 +54,11 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
       try {
         const remoteOrder = await getSupabaseTableOrder(tableId);
         if (active) {
-          // A successful null response means the cashier closed the session;
-          // do not keep rendering the stale local snapshot in that case.
+          // A null response means there is no active order to render. This is
+          // normal before the first order; only an explicit closed-session
+          // error below should leave the table flow.
           if (!remoteOrder) {
-            router.replace("/?session=closed");
+            setOrder(null);
             return;
           }
           setOrder(remoteOrder);
