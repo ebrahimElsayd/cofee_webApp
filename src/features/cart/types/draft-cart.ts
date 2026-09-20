@@ -40,4 +40,5 @@ export type SubmittedTableOrder = {
   items: DraftCartItem[];
   status: "sent";
   submittedAt: string;
+  sessionStatus?: "open" | "ordering" | "payment_pending";
 };

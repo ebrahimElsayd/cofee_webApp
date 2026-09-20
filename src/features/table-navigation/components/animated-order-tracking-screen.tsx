@@ -31,6 +31,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
     return Array.from(groups, ([name, items]) => ({ name, items, total: items.reduce((sum, item) => sum + item.totalPrice, 0) }));
   }, [activeItems]);
   const payableTotal = activeItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  const isSettled = order?.sessionStatus === "payment_pending";
 
   async function requestBill() {
     if ((billRequested && !billReminderAvailable) || !allReady) return;
@@ -113,7 +114,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
                 <div className={`${styles.cup} ${allReady ? styles.cupReady : ""}`}><i /><b /></div>
                 <div className={styles.saucer} />
               </div>
-              <div><strong>{allCancelled ? "تم إلغاء الطلب" : allReady ? "طلبك جاهز للاستلام" : journeyStage === 2 ? "الباريستا يحضّر طلبك الآن" : "طلبك وصل للباريستا"}</strong><p>{allCancelled ? "لن تُحتسب العناصر الملغاة في الحساب" : allReady ? "استلمه من الكاونتر أو انتظر النادل" : journeyStage === 2 ? "يتم تحضير مشروباتك بعناية" : "تم استلام الطلب وسيبدأ التحضير قريبًا"}</p></div>
+              <div><strong>{isSettled ? "تم دفع الحساب" : allCancelled ? "تم إلغاء الطلب" : allReady ? "طلبك جاهز للاستلام" : journeyStage === 2 ? "الباريستا يحضّر طلبك الآن" : "طلبك وصل للباريستا"}</strong><p>{isSettled ? "الجلسة مقفلة للطلبات الجديدة وبانتظار تأكيد المغادرة من الكاشير" : allCancelled ? "لن تُحتسب العناصر الملغاة في الحساب" : allReady ? "استلمه من الكاونتر أو انتظر النادل" : journeyStage === 2 ? "يتم تحضير مشروباتك بعناية" : "تم استلام الطلب وسيبدأ التحضير قريبًا"}</p></div>
               <small>#{order.id}</small>
             </section>
             <section className={styles.journey} aria-label="رحلة الطلب">
@@ -137,10 +138,10 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
                 );
               })}
             </section>
-            <button type="button" className={styles.billButton} onClick={() => void requestBill()} disabled={(billRequested && !billReminderAvailable) || !allReady}>
+            <button type="button" className={styles.billButton} onClick={() => void requestBill()} disabled={isSettled || (billRequested && !billReminderAvailable) || !allReady}>
               <span aria-hidden="true">▣</span>
-              <strong>{billRequested ? (billReminderAvailable ? "تذكير الكاشير" : "تم طلب الحساب") : allReady ? "إنهاء الجلسة وطلب الحساب" : "الحساب بعد جاهزية الطلب"}</strong>
-              <small>{billRequested ? "سيأتي الباريستا لمراجعة الحساب" : allReady ? "الحساب التفصيلي لكل شخص ومشروبه" : "انتظر حتى تصبح كل المشروبات جاهزة"}</small>
+              <strong>{isSettled ? "تم دفع الحساب · بانتظار المغادرة" : billRequested ? (billReminderAvailable ? "تذكير الكاشير" : "تم طلب الحساب") : allReady ? "إنهاء الجلسة وطلب الحساب" : "الحساب بعد جاهزية الطلب"}</strong>
+              <small>{isSettled ? "لا يمكن إضافة طلب جديد إلى جلسة مدفوعة" : billRequested ? "سيأتي الباريستا لمراجعة الحساب" : allReady ? "الحساب التفصيلي لكل شخص ومشروبه" : "انتظر حتى تصبح كل المشروبات جاهزة"}</small>
             </button>
             <p className={styles.serviceNote}>عند جاهزية أي مشروب ستتغير بطاقته إلى «جاهز». استلمه من الكاونتر أو انتظر النادل حسب نظام الكافيه.</p>
           </>

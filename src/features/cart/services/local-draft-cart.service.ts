@@ -8,7 +8,7 @@ import { generateSafeUUID } from "@/shared/utils/uuid";
 
 const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 const ACTIVE_SESSION_KEY = "kings-cafe:active-table-session";
-const ACTIVE_SESSION_STATUSES = new Set(["active", "open", "ordering", "payment_pending"]);
+const ORDERABLE_SESSION_STATUSES = new Set(["active", "open", "ordering"]);
 const CART_REQUEST_TIMEOUT_MS = 12_000;
 
 type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string };
@@ -393,7 +393,10 @@ async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
   if (result.error) throw result.error;
   const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
   const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
-  if (!row || !table || !ACTIVE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+  if (row?.status === "payment_pending") {
+    throw new Error("تم دفع حساب هذه الجلسة. اطلب من الكاشير إغلاق الطاولة قبل بدء طلب جديد.");
+  }
+  if (!row || !table || !ORDERABLE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
     resetLocalTableContext(pointer, tableId);
     throw new Error("The table session is no longer active.");
   }

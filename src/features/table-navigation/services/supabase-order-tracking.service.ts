@@ -29,6 +29,7 @@ const ACTIVE_SESSION_KEY_PREFIX = "kings-cafe:active-table-session:";
 const ACTIVE_SESSION_STATUSES = new Set(["open", "ordering", "payment_pending"]);
 const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string };
+type ValidatedSession = ActiveSessionPointer & { status: "open" | "ordering" | "payment_pending" };
 export type TableOrderUpdateKind = "orders" | "order_items" | "session" | "notifications";
 const trackingListeners = new Set<(updates: ReadonlySet<TableOrderUpdateKind>) => void>();
 const pendingTrackingUpdates = new Set<TableOrderUpdateKind>();
@@ -109,10 +110,9 @@ export function getActiveTableSessionId(tableId?: number) {
   return getActiveTableSessionPointer(tableId)?.sessionId ?? null;
 }
 
-async function validateSessionForTable(tableId: number, force = false) {
+async function validateSessionForTable(tableId: number): Promise<ValidatedSession> {
   const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer || pointer.tableId !== tableId) throw new TableSessionClosedError();
-  if (!force && validatedSession?.sessionId === pointer.sessionId && Date.now() - validatedSession.checkedAt < SESSION_VALIDATION_TTL_MS) return pointer;
   const supabase = createSupabaseBrowserClient();
   const result = await supabase.from("table_sessions").select("id,table_id,status,cafe_tables!inner(table_number,cafe_id)").eq("id", pointer.sessionId).maybeSingle();
   if (result.error) throw result.error;
@@ -128,11 +128,11 @@ async function validateSessionForTable(tableId: number, force = false) {
     throw new TableSessionClosedError();
   }
   validatedSession = { sessionId: pointer.sessionId, checkedAt: Date.now() };
-  return pointer;
+  return { ...pointer, status: row.status as ValidatedSession["status"] };
 }
 
 export async function validateActiveTableSession(tableId: number): Promise<void> {
-  await validateSessionForTable(tableId, true);
+  await validateSessionForTable(tableId);
 }
 
 export async function getCustomerNotifications(tableId?: number): Promise<CustomerRemoteNotification[]> {
@@ -220,6 +220,7 @@ async function loadSupabaseTableOrder(tableId: number): Promise<SubmittedTableOr
     items: mappedItems,
     status: "sent",
     submittedAt: orders[0].created_at,
+    sessionStatus: session.status,
   };
 }
 
