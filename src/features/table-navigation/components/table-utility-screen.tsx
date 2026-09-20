@@ -63,7 +63,7 @@ export function TableServiceScreen({ tableId }: { tableId: number }) {
 
   async function requestService(action: typeof serviceActions[number]) {
     try {
-      await requestTableService(action.id);
+      await requestTableService(action.id, undefined, tableId);
     } catch {
       // Keep the confirmation usable while the customer is offline.
     }

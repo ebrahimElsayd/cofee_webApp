@@ -58,7 +58,8 @@ export function TableJoinScreen({ rawTableId, cafeId, tableToken }: TableJoinScr
       setStatus("success");
 
       redirectTimerRef.current = window.setTimeout(() => {
-        router.replace(`/table/${session.tableId}/menu`);
+        const scope = session.cafeId ? `?cafe=${encodeURIComponent(session.cafeId)}` : "";
+        router.replace(`/table/${session.tableId}/menu${scope}`);
       }, 850);
     } catch (error) {
       if (currentAttempt !== attemptRef.current) return;

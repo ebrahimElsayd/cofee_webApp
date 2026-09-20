@@ -25,6 +25,7 @@ export class TableSessionClosedError extends Error {
   }
 }
 const ACTIVE_SESSION_KEY = "kings-cafe:active-table-session";
+const ACTIVE_SESSION_KEY_PREFIX = "kings-cafe:active-table-session:";
 const ACTIVE_SESSION_STATUSES = new Set(["open", "ordering", "payment_pending"]);
 const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string };
@@ -36,13 +37,14 @@ let trackingRetry: ReturnType<typeof setTimeout> | null = null;
 let trackingNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 let trackingActive = false;
 let trackingClosing = false;
+let trackingTableId: number | null = null;
 let validatedSession: { sessionId: string; checkedAt: number } | null = null;
 const SESSION_VALIDATION_TTL_MS = 30_000;
 const orderRequests = new Map<string, Promise<SubmittedTableOrder | null>>();
 
-async function ensureTrackingChannel() {
+async function ensureTrackingChannel(tableId?: number) {
   if (trackingChannel || trackingListeners.size === 0) return;
-  const pointer = getActiveTableSessionPointer();
+  const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer) return;
   try {
     await validateSessionForTable(pointer.tableId);
@@ -85,16 +87,17 @@ async function ensureTrackingChannel() {
         trackingClosing = false;
       }
       if (!trackingActive || trackingRetry) return;
-      trackingRetry = setTimeout(() => { trackingRetry = null; void ensureTrackingChannel(); }, 3_000);
+      trackingRetry = setTimeout(() => { trackingRetry = null; void ensureTrackingChannel(trackingTableId ?? undefined); }, 3_000);
     });
 }
 
-function getActiveTableSessionPointer(): ActiveSessionPointer | null {
+function getActiveTableSessionPointer(tableId?: number): ActiveSessionPointer | null {
   try {
-    const value = window.localStorage.getItem(ACTIVE_SESSION_KEY);
+    const scopedKey = Number.isSafeInteger(tableId) ? `${ACTIVE_SESSION_KEY_PREFIX}${tableId}` : ACTIVE_SESSION_KEY;
+    const value = window.localStorage.getItem(scopedKey) ?? (tableId === undefined ? null : window.localStorage.getItem(ACTIVE_SESSION_KEY));
     if (!value) return null;
     const parsed = JSON.parse(value) as Partial<ActiveSessionPointer>;
-    return typeof parsed.sessionId === "string" && typeof parsed.tableId === "number" && Number.isInteger(parsed.tableId) && typeof parsed.cafeId === "string"
+    return typeof parsed.sessionId === "string" && typeof parsed.tableId === "number" && Number.isInteger(parsed.tableId) && (tableId === undefined || parsed.tableId === tableId) && typeof parsed.cafeId === "string"
       ? { sessionId: parsed.sessionId, tableId: parsed.tableId, cafeId: parsed.cafeId }
       : null;
   } catch {
@@ -102,12 +105,12 @@ function getActiveTableSessionPointer(): ActiveSessionPointer | null {
   }
 }
 
-export function getActiveTableSessionId() {
-  return getActiveTableSessionPointer()?.sessionId ?? null;
+export function getActiveTableSessionId(tableId?: number) {
+  return getActiveTableSessionPointer(tableId)?.sessionId ?? null;
 }
 
 async function validateSessionForTable(tableId: number, force = false) {
-  const pointer = getActiveTableSessionPointer();
+  const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer || pointer.tableId !== tableId) throw new TableSessionClosedError();
   if (!force && validatedSession?.sessionId === pointer.sessionId && Date.now() - validatedSession.checkedAt < SESSION_VALIDATION_TTL_MS) return pointer;
   const supabase = createSupabaseBrowserClient();
@@ -116,7 +119,9 @@ async function validateSessionForTable(tableId: number, force = false) {
   const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
   const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
   if (!row || !table || !ACTIVE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
-    window.localStorage.removeItem(ACTIVE_SESSION_KEY);
+    const globalPointer = getActiveTableSessionPointer();
+    if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
+    window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
     window.localStorage.removeItem(`kings-cafe:table:${tableId}:draft-cart:v2`);
     validatedSession = null;
     window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
@@ -130,8 +135,8 @@ export async function validateActiveTableSession(tableId: number): Promise<void>
   await validateSessionForTable(tableId, true);
 }
 
-export async function getCustomerNotifications(): Promise<CustomerRemoteNotification[]> {
-  const sessionId = getActiveTableSessionId();
+export async function getCustomerNotifications(tableId?: number): Promise<CustomerRemoteNotification[]> {
+  const sessionId = getActiveTableSessionId(tableId);
   if (!sessionId) return [];
   const supabase = createSupabaseBrowserClient();
   const result = await supabase.from("notifications").select("id,order_id,order_item_id,type,title,body,is_read,created_at").eq("session_id", sessionId).order("created_at", { ascending: false }).limit(40);
@@ -149,8 +154,8 @@ export async function getCustomerNotifications(): Promise<CustomerRemoteNotifica
   }).slice(0, 8);
 }
 
-export async function markCustomerNotificationsRead() {
-  const sessionId = getActiveTableSessionId();
+export async function markCustomerNotificationsRead(tableId?: number) {
+  const sessionId = getActiveTableSessionId(tableId);
   if (!sessionId) return;
   const supabase = createSupabaseBrowserClient();
   const result = await supabase.from("notifications").update({ is_read: true }).eq("session_id", sessionId).eq("is_read", false);
@@ -158,7 +163,7 @@ export async function markCustomerNotificationsRead() {
 }
 
 export function getSupabaseTableOrder(tableId: number): Promise<SubmittedTableOrder | null> {
-  const pointer = getActiveTableSessionPointer();
+  const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer) return Promise.resolve(null);
   const existing = orderRequests.get(pointer.sessionId);
   if (existing) return existing;
@@ -170,7 +175,7 @@ export function getSupabaseTableOrder(tableId: number): Promise<SubmittedTableOr
 }
 
 async function loadSupabaseTableOrder(tableId: number): Promise<SubmittedTableOrder | null> {
-  const pointer = getActiveTableSessionPointer();
+  const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer) return null;
   const session = await validateSessionForTable(tableId);
   const sessionId = session.sessionId;
@@ -218,12 +223,14 @@ async function loadSupabaseTableOrder(tableId: number): Promise<SubmittedTableOr
   };
 }
 
-export function subscribeToTableOrderUpdates(onChange: (updates: ReadonlySet<TableOrderUpdateKind>) => void) {
+export function subscribeToTableOrderUpdates(onChange: (updates: ReadonlySet<TableOrderUpdateKind>) => void, tableId?: number) {
   trackingListeners.add(onChange);
-  void ensureTrackingChannel();
+  trackingTableId = tableId ?? trackingTableId;
+  void ensureTrackingChannel(trackingTableId ?? undefined);
   return () => {
     trackingListeners.delete(onChange);
     if (trackingListeners.size > 0) return;
+    trackingTableId = null;
     trackingActive = false;
     if (trackingRetry) clearTimeout(trackingRetry);
     trackingRetry = null;

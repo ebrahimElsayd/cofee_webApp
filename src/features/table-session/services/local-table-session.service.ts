@@ -5,14 +5,19 @@ import {
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 
 const SESSION_STORAGE_KEY = "kings-cafe:active-table-session";
+const SESSION_STORAGE_KEY_PREFIX = "kings-cafe:active-table-session:";
 const TABLE_SESSION_REQUEST_TIMEOUT_MS = 12_000;
 
 export type StoredTableSession = TableSessionResolution;
 
-export function getStoredTableSession(): StoredTableSession | null {
+export function getStoredTableSession(tableId?: number): StoredTableSession | null {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) ?? "null") as Partial<StoredTableSession> | null;
-    if (!parsed || !Number.isSafeInteger(parsed.tableId) || typeof parsed.cafeId !== "string" || typeof parsed.sessionId !== "string" || typeof parsed.guestId !== "string") return null;
+    const key = Number.isSafeInteger(tableId) ? `${SESSION_STORAGE_KEY_PREFIX}${tableId}` : SESSION_STORAGE_KEY;
+    const scopedValue = window.localStorage.getItem(key);
+    const legacyValue = tableId === undefined ? null : window.localStorage.getItem(SESSION_STORAGE_KEY);
+    const parsed = JSON.parse(scopedValue ?? legacyValue ?? "null") as Partial<StoredTableSession> | null;
+    if (!parsed || !Number.isSafeInteger(parsed.tableId) || (tableId !== undefined && parsed.tableId !== tableId) || typeof parsed.cafeId !== "string" || typeof parsed.sessionId !== "string" || typeof parsed.guestId !== "string") return null;
+    if (tableId !== undefined && !scopedValue) window.localStorage.setItem(`${SESSION_STORAGE_KEY_PREFIX}${tableId}`, JSON.stringify(parsed));
     return parsed as StoredTableSession;
   } catch {
     return null;
@@ -99,7 +104,9 @@ export async function resolveLocalTableSession(
     if (!opened?.session_id || !opened.guest_id) throw new Error("Table session was not created");
 
     const resolution = { tableId, cafeId: opened.cafe_id, sessionId: opened.session_id, guestId: opened.guest_id, outcome: opened.outcome as TableSessionResolution["outcome"] };
-    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(resolution));
+    const serialized = JSON.stringify(resolution);
+    window.localStorage.setItem(SESSION_STORAGE_KEY, serialized);
+    window.localStorage.setItem(`${SESSION_STORAGE_KEY_PREFIX}${tableId}`, serialized);
     return resolution;
   } catch (error) {
     if (error instanceof TableSessionError) throw error;

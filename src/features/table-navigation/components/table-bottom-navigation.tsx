@@ -7,6 +7,7 @@ import {
   getCartUpdatedEventName,
   getSharedDraftCart,
 } from "@/features/cart/services/local-draft-cart.service";
+import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
 import { getCustomerNotifications, markCustomerNotificationsRead, subscribeToTableOrderUpdates, TableSessionClosedError, validateActiveTableSession } from "../services/supabase-order-tracking.service";
 import styles from "./table-bottom-navigation.module.css";
 
@@ -16,12 +17,17 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const cafeId = searchParams.get("cafe");
+  const [storedCafeId, setStoredCafeId] = useState<string | null>(null);
+  const cafeId = searchParams.get("cafe") ?? storedCafeId;
   const [cartCount, setCartCount] = useState(0);
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readyToast, setReadyToast] = useState<CustomerNotification | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    queueMicrotask(() => setStoredCafeId(getStoredTableSession(tableId)?.cafeId ?? null));
+  }, [tableId]);
 
   useEffect(() => {
     const storageKey = `kings-cafe:customer-notifications:${tableId}`;
@@ -42,7 +48,7 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
     const refresh = async (options: { notifications?: boolean; session?: boolean } = { notifications: true, session: true }) => {
       try {
         if (options.notifications) try {
-          const remoteNotifications = await getCustomerNotifications();
+          const remoteNotifications = await getCustomerNotifications(tableId);
           if (active) {
             const mapped = remoteNotifications.map((item) => ({ id: item.id, title: item.title, message: item.body, createdAt: item.created_at, read: item.is_read }));
             const newSignal = remoteHydrated
@@ -70,7 +76,7 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
     const unsubscribe = subscribeToTableOrderUpdates((updates) => {
       if (updates.has("notifications")) void refresh({ notifications: true, session: false });
       if (updates.has("session")) void refresh({ notifications: false, session: true });
-    });
+    }, tableId);
     const reconcile = () => {
       if (document.visibilityState === "visible" && navigator.onLine) void refresh();
     };
@@ -118,7 +124,7 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
     <>
       {readyToast && <div className={styles.readyToast} role="status" aria-live="polite"><span aria-hidden="true">☕✨</span><div><strong>{readyToast.title}</strong><small>{readyToast.message}</small></div><button type="button" onClick={() => setReadyToast(null)} aria-label="إغلاق">×</button></div>}
       <div className={styles.notificationArea}>
-        <button type="button" className={`${styles.notificationButton} ${notifications.some((item) => !item.read) ? styles.hasUnread : ""}`} onClick={() => { setNotificationsOpen((open) => !open); void markCustomerNotificationsRead().catch(() => undefined); setNotifications((current) => { const next = current.map((item) => ({ ...item, read: true })); try { window.localStorage.setItem(`kings-cafe:customer-notifications:${tableId}`, JSON.stringify(next)); } catch { /* best effort */ } return next; }); }} aria-label="إشعارات الطلب" aria-expanded={notificationsOpen}>
+        <button type="button" className={`${styles.notificationButton} ${notifications.some((item) => !item.read) ? styles.hasUnread : ""}`} onClick={() => { setNotificationsOpen((open) => !open); void markCustomerNotificationsRead(tableId).catch(() => undefined); setNotifications((current) => { const next = current.map((item) => ({ ...item, read: true })); try { window.localStorage.setItem(`kings-cafe:customer-notifications:${tableId}`, JSON.stringify(next)); } catch { /* best effort */ } return next; }); }} aria-label="إشعارات الطلب" aria-expanded={notificationsOpen}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
           {notifications.some((item) => !item.read) && <b>{Math.min(99, notifications.filter((item) => !item.read).length)}</b>}
         </button>

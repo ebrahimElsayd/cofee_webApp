@@ -1,8 +1,8 @@
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { getActiveTableSessionId } from "./supabase-order-tracking.service";
 
-export async function requestTableService(type: "waiter" | "tissues" | "water" | "bill", note?: string) {
-  const sessionId = getActiveTableSessionId();
+export async function requestTableService(type: "waiter" | "tissues" | "water" | "bill", note?: string, tableId?: number) {
+  const sessionId = getActiveTableSessionId(tableId);
   if (!sessionId) throw new Error("No active table session");
   const supabase = createSupabaseBrowserClient();
   if (type === "bill") {

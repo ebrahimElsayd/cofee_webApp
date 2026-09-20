@@ -50,9 +50,9 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
         setIsCatalogLoading(false);
       });
     }
-    const session = getStoredTableSession();
+    const session = getStoredTableSession(tableId);
     if (!session || session.tableId !== tableId) {
-      router.replace("/");
+      router.replace(`/table/${tableId}`);
       return () => { active = false; };
     }
     const applyCatalog = (catalog: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>) => {

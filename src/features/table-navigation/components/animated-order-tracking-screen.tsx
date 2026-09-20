@@ -35,7 +35,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
   async function requestBill() {
     if ((billRequested && !billReminderAvailable) || !allReady) return;
     try {
-      await requestTableService("bill");
+      await requestTableService("bill", undefined, tableId);
       setBillRequested(true);
       setBillReminderAvailable(false);
       setBillReminderCycle((cycle) => cycle + 1);
@@ -79,7 +79,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
     void load();
     const unsubscribe = subscribeToTableOrderUpdates((updates) => {
       if (updates.has("orders") || updates.has("order_items") || updates.has("session")) void load();
-    });
+    }, tableId);
     const reconcile = () => {
       if (document.visibilityState === "visible" && navigator.onLine) void load();
     };
