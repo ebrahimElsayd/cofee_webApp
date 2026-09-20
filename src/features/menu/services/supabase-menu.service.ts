@@ -34,8 +34,8 @@ let menuVersionValue: number | null = null;
 let versioningUnavailable = false;
 const MENU_VERSION_TTL_MS = 15_000;
 
-export function getCachedMenuCatalog(): MenuCatalog | null {
-  const cafeId = getActiveCafeId();
+export function getCachedMenuCatalog(tableId?: number): MenuCatalog | null {
+  const cafeId = getActiveCafeId(tableId);
   if (!cafeId) return null;
   if (catalogCache && catalogCacheCafeId === cafeId) return catalogCache;
   try {
@@ -50,10 +50,10 @@ export function getCachedMenuCatalog(): MenuCatalog | null {
   } catch { return null; }
 }
 
-export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) => void): () => void {
+export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) => void, tableId?: number): () => void {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return () => undefined;
-  const cafeId = getActiveCafeId();
+  const cafeId = getActiveCafeId(tableId);
   if (!cafeId) return () => undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -67,11 +67,11 @@ export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) 
       catalogCache = null;
       catalogCacheCafeId = null;
       catalogCachedAt = 0;
-      void getSupabaseMenuCatalog().then(onCatalogChanged).catch(() => undefined);
+      void getSupabaseMenuCatalog({ tableId }).then(onCatalogChanged).catch(() => undefined);
     }, 350);
   };
   const refreshOneProduct = (productId: string) => {
-    void Promise.all([loadMenuProduct(cafeId, productId), getMenuVersion(cafeId, true)]).then(([product, version]) => {
+    void Promise.all([loadMenuProduct(cafeId, productId), getMenuVersion(cafeId, true, tableId)]).then(([product, version]) => {
       if (disposed || !catalogCache || catalogCacheCafeId !== cafeId) return;
       const products = product
         ? [...catalogCache.products.filter((item) => item.id !== product.id), product]
@@ -134,15 +134,15 @@ export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) 
   };
 }
 
-export async function getSupabaseMenuCatalog(options?: { forceRefresh?: boolean }): Promise<MenuCatalog> {
+export async function getSupabaseMenuCatalog(options?: { forceRefresh?: boolean; tableId?: number }): Promise<MenuCatalog> {
   if (options?.forceRefresh) {
     catalogCache = null;
     catalogCacheCafeId = null;
     catalogCachedAt = 0;
   }
-  const activeCafeId = await resolveActiveCafeId();
+  const activeCafeId = await resolveActiveCafeId(options?.tableId);
   if (!activeCafeId) throw new Error("No active cafe context. Open the table QR code again.");
-  const version = await getMenuVersion(activeCafeId, Boolean(options?.forceRefresh));
+  const version = await getMenuVersion(activeCafeId, Boolean(options?.forceRefresh), options?.tableId);
   if (version !== null) {
     if (catalogCache && catalogCacheCafeId === activeCafeId && catalogCacheVersion === version) return catalogCache;
     const stored = await readStoredMenuCatalog(activeCafeId);
@@ -217,11 +217,11 @@ function applyCatalogCache(cafeId: string, catalog: MenuCatalog, version: number
   if (version !== null) void writeStoredMenuCatalog({ cafeId, version, catalog, savedAt: Date.now() });
 }
 
-async function getMenuVersion(cafeId: string, force = false): Promise<number | null> {
+async function getMenuVersion(cafeId: string, force = false, tableId?: number): Promise<number | null> {
   if (versioningUnavailable) return null;
   if (!force && menuVersionCafeId === cafeId && Date.now() - menuVersionCheckedAt < MENU_VERSION_TTL_MS) return menuVersionValue;
   if (menuVersionRequest && menuVersionCafeId === cafeId) return menuVersionRequest;
-  const pointer = getActiveTableSessionPointer();
+  const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer?.sessionId || pointer.cafeId !== cafeId) return null;
   const supabase = createSupabaseBrowserClient();
   menuVersionCafeId = cafeId;
@@ -240,9 +240,10 @@ async function getMenuVersion(cafeId: string, force = false): Promise<number | n
   return menuVersionRequest;
 }
 
-function getActiveCafeId(): string | null {
+function getActiveCafeId(tableId?: number): string | null {
   try {
-    const raw = window.localStorage.getItem("kings-cafe:active-table-session");
+    const key = Number.isSafeInteger(tableId) ? `kings-cafe:active-table-session:${tableId}` : "kings-cafe:active-table-session";
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { cafeId?: unknown };
     return typeof parsed.cafeId === "string" && parsed.cafeId.length > 0 ? parsed.cafeId : null;
@@ -251,20 +252,22 @@ function getActiveCafeId(): string | null {
   }
 }
 
-function getActiveTableSessionPointer(): { sessionId: string; cafeId: string } | null {
+function getActiveTableSessionPointer(tableId?: number): { sessionId: string; cafeId: string } | null {
   try {
-    const raw = window.localStorage.getItem("kings-cafe:active-table-session");
+    const key = Number.isSafeInteger(tableId) ? `kings-cafe:active-table-session:${tableId}` : "kings-cafe:active-table-session";
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { sessionId?: unknown; cafeId?: unknown };
-    return typeof parsed.sessionId === "string" && typeof parsed.cafeId === "string" ? { sessionId: parsed.sessionId, cafeId: parsed.cafeId } : null;
+    const parsed = JSON.parse(raw) as { sessionId?: unknown; tableId?: unknown; cafeId?: unknown };
+    return typeof parsed.sessionId === "string" && typeof parsed.cafeId === "string" && (tableId === undefined || parsed.tableId === tableId) ? { sessionId: parsed.sessionId, cafeId: parsed.cafeId } : null;
   } catch { return null; }
 }
 
-async function resolveActiveCafeId(): Promise<string | null> {
-  const cachedCafeId = getActiveCafeId();
+async function resolveActiveCafeId(tableId?: number): Promise<string | null> {
+  const cachedCafeId = getActiveCafeId(tableId);
   if (cachedCafeId) return cachedCafeId;
   try {
-    const raw = window.localStorage.getItem("kings-cafe:active-table-session");
+    const key = Number.isSafeInteger(tableId) ? `kings-cafe:active-table-session:${tableId}` : "kings-cafe:active-table-session";
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { sessionId?: unknown; tableId?: unknown };
     if (typeof parsed.sessionId !== "string") return null;
@@ -273,7 +276,7 @@ async function resolveActiveCafeId(): Promise<string | null> {
     if (result.error) throw result.error;
     const relation = Array.isArray(result.data?.cafe_tables) ? result.data?.cafe_tables[0] : result.data?.cafe_tables;
     const cafeId = typeof relation?.cafe_id === "string" ? relation.cafe_id : null;
-    if (cafeId) window.localStorage.setItem("kings-cafe:active-table-session", JSON.stringify({ ...parsed, cafeId }));
+    if (cafeId) window.localStorage.setItem(key, JSON.stringify({ ...parsed, cafeId }));
     return cafeId;
   } catch {
     return null;

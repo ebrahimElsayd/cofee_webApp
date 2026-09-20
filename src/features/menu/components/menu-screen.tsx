@@ -41,7 +41,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
     let active = true;
     // Read browser storage only after hydration so SSR and the first client
     // render produce identical markup.
-    const cachedCatalog = getCachedMenuCatalog();
+    const cachedCatalog = getCachedMenuCatalog(tableId);
     if (cachedCatalog) {
       queueMicrotask(() => {
         if (!active) return;
@@ -62,7 +62,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
       setCatalogError("");
       setIsCatalogLoading(false);
     };
-    const refreshCatalog = (forceRefresh = false) => getSupabaseMenuCatalog({ forceRefresh }).then(applyCatalog);
+    const refreshCatalog = (forceRefresh = false) => getSupabaseMenuCatalog({ forceRefresh, tableId }).then(applyCatalog);
 
     void refreshCatalog()
       .catch(() => { if (active) { setCatalogError("تعذر تحميل قائمة المنتجات من الخادم."); setIsCatalogLoading(false); } });
@@ -72,7 +72,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
       setCatalogProducts(catalog.products);
       setCatalogError("");
       setIsCatalogLoading(false);
-    });
+    }, tableId);
     let messageTimer: number | undefined;
     let hideMessageTimer: number | undefined;
     try {
