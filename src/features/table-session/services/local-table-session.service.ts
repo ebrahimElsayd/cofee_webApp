@@ -110,7 +110,11 @@ export async function resolveLocalTableSession(
     return resolution;
   } catch (error) {
     if (error instanceof TableSessionError) throw error;
-    const message = error instanceof Error ? error.message : "Unable to start the table session.";
+    const message = error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "Unable to start the table session.")
+        : "Unable to start the table session.";
     throw new TableSessionError(
       "SERVICE_UNAVAILABLE",
       /timed out/i.test(message)
