@@ -21,3 +21,10 @@ test("customer cart rejects payment_pending while tracking keeps it visible", as
   assert.match(tracking, /ACTIVE_SESSION_STATUSES = new Set\(\["open", "ordering", "payment_pending"\]\)/);
   assert.match(tracking, /sessionStatus: session\.status/);
 });
+
+test("customer UI explains the paid-session lock instead of suggesting a retry", async () => {
+  const screen = await readFile(new URL("src/features/menu/components/product-details-screen.tsx", root), "utf8");
+  assert.match(screen, /تم تحصيل حساب هذه الجلسة/);
+  assert.match(screen, /اطلب من الكاشير إغلاق الطاولة/);
+  assert.match(screen, /payment_pending/);
+});
