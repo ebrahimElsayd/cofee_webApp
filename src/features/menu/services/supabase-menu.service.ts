@@ -34,7 +34,7 @@ let menuVersionValue: number | null = null;
 let versioningUnavailable = false;
 const MENU_VERSION_TTL_MS = 15_000;
 
-export function getCachedMenuCatalog(tableId?: number): MenuCatalog | null {
+export function getCachedMenuCatalog(tableId: number): MenuCatalog | null {
   const cafeId = getActiveCafeId(tableId);
   if (!cafeId) return null;
   if (catalogCache && catalogCacheCafeId === cafeId) return catalogCache;
@@ -50,10 +50,10 @@ export function getCachedMenuCatalog(tableId?: number): MenuCatalog | null {
   } catch { return null; }
 }
 
-export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) => void, tableId?: number): () => void {
+export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) => void, tableId: number): () => void {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return () => undefined;
-  if (typeof tableId !== "number" || !Number.isSafeInteger(tableId)) return () => undefined;
+  if (!Number.isSafeInteger(tableId)) return () => undefined;
   const cafeId = getActiveCafeId(tableId);
   if (!cafeId) return () => undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
