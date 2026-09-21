@@ -60,13 +60,22 @@ const serviceActions = [
 export function TableServiceScreen({ tableId }: { tableId: number }) {
   const router = useRouter();
   const [sentService, setSentService] = useState("");
+  const [serviceError, setServiceError] = useState("");
+  const [submittingService, setSubmittingService] = useState<string | null>(null);
 
   async function requestService(action: typeof serviceActions[number]) {
+    if (submittingService) return;
+    setSubmittingService(action.id);
+    setServiceError("");
+    let succeeded = false;
     try {
       await requestTableService(action.id, undefined, tableId);
+      succeeded = true;
     } catch {
-      // Keep the confirmation usable while the customer is offline.
+      setServiceError("تعذر إرسال الطلب. تحقق من الاتصال وحاول مرة أخرى.");
     }
+    finally { setSubmittingService(null); }
+    if (!succeeded) return;
     setSentService(action.title);
     if (action.id === "bill") window.setTimeout(() => router.push(`/table/${tableId}/order?bill=1`), 450);
     window.setTimeout(() => setSentService(""), 2400);
@@ -80,13 +89,14 @@ export function TableServiceScreen({ tableId }: { tableId: number }) {
       </section>
       <section className={styles.serviceGrid}>
         {serviceActions.map((action) => (
-          <button key={action.id} type="button" onClick={() => void requestService(action)}>
+          <button key={action.id} type="button" onClick={() => void requestService(action)} disabled={submittingService !== null}>
             <i aria-hidden="true">{action.icon}</i>
-            <strong>{action.title}</strong>
+            <strong>{submittingService === action.id ? "جاري الإرسال…" : action.title}</strong>
             <span lang="en">{action.subtitle}</span>
           </button>
         ))}
       </section>
+      {serviceError && <p className={styles.serviceNote} role="alert">{serviceError}</p>}
       <p className={styles.serviceNote}>هذه الخدمات تجريبية الآن، وسيتم ربطها بنظام الكافيه في مرحلة الـBackend.</p>
       {sentService && <div className={styles.toast} role="status">✓ تم إرسال «{sentService}»</div>}
     </UtilityShell>

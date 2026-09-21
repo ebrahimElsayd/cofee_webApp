@@ -65,7 +65,9 @@ export function TableJoinScreen({ rawTableId, cafeId, tableToken }: TableJoinScr
       if (currentAttempt !== attemptRef.current) return;
 
       setErrorMessage(
-        error instanceof TableSessionError && error.code === "AMBIGUOUS_TABLE"
+        error instanceof TableSessionError && /TABLE_SESSION_SETTLED|paid payment|دفع حساب/i.test(error.message)
+          ? "تم تحصيل حساب هذه الطاولة. اطلب من الكاشير إغلاق الطاولة أولًا، ثم امسح رمز QR مرة أخرى لبدء جلسة جديدة."
+          : error instanceof TableSessionError && error.code === "AMBIGUOUS_TABLE"
           ? "هذا الرقم موجود في أكثر من كافيه. استخدم رمز QR الخاص بالطاولة."
           : error instanceof TableSessionError && error.code === "MISSING_CAFE_SCOPE"
             ? "استخدم رمز QR الخاص بالطاولة لبدء جلسة آمنة."

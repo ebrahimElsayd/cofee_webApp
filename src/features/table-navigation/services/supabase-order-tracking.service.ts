@@ -38,8 +38,6 @@ let trackingNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 let trackingActive = false;
 let trackingClosing = false;
 let trackingTableId: number | null = null;
-let validatedSession: { sessionId: string; checkedAt: number } | null = null;
-const SESSION_VALIDATION_TTL_MS = 30_000;
 const orderRequests = new Map<string, Promise<SubmittedTableOrder | null>>();
 
 async function ensureTrackingChannel(tableId?: number) {
@@ -109,30 +107,33 @@ export function getActiveTableSessionId(tableId?: number) {
   return getActiveTableSessionPointer(tableId)?.sessionId ?? null;
 }
 
-async function validateSessionForTable(tableId: number, force = false) {
+async function validateSessionForTable(tableId: number): Promise<ActiveSessionPointer & { status: "open" | "ordering" | "payment_pending" }> {
   const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer || pointer.tableId !== tableId) throw new TableSessionClosedError();
-  if (!force && validatedSession?.sessionId === pointer.sessionId && Date.now() - validatedSession.checkedAt < SESSION_VALIDATION_TTL_MS) return pointer;
   const supabase = createSupabaseBrowserClient();
   const result = await supabase.from("table_sessions").select("id,table_id,status,cafe_tables!inner(table_number,cafe_id)").eq("id", pointer.sessionId).maybeSingle();
   if (result.error) throw result.error;
   const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
   const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
-  if (!row || !table || !ACTIVE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+  let effectiveStatus = row?.status;
+  if (row?.status === "payment_pending") {
+    const paid = await supabase.from("payments").select("id").eq("session_id", row.id).eq("status", "paid").limit(1).maybeSingle();
+    if (paid.error) throw paid.error;
+    if (!paid.data) effectiveStatus = "ordering";
+  }
+  if (!row || !table || !ACTIVE_SESSION_STATUSES.has(effectiveStatus ?? "") || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
     const globalPointer = getActiveTableSessionPointer();
     if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
     window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
     window.localStorage.removeItem(`kings-cafe:table:${tableId}:draft-cart:v2`);
-    validatedSession = null;
     window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
     throw new TableSessionClosedError();
   }
-  validatedSession = { sessionId: pointer.sessionId, checkedAt: Date.now() };
-  return pointer;
+  return { ...pointer, status: effectiveStatus as "open" | "ordering" | "payment_pending" };
 }
 
 export async function validateActiveTableSession(tableId: number): Promise<void> {
-  await validateSessionForTable(tableId, true);
+  await validateSessionForTable(tableId);
 }
 
 export async function getCustomerNotifications(tableId?: number): Promise<CustomerRemoteNotification[]> {
@@ -220,6 +221,7 @@ async function loadSupabaseTableOrder(tableId: number): Promise<SubmittedTableOr
     items: mappedItems,
     status: "sent",
     submittedAt: orders[0].created_at,
+    sessionStatus: session.status,
   };
 }
 

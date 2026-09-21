@@ -29,6 +29,14 @@ test("menu uses persistent versioned cache and merges concurrent loads", () => {
   assert.match(menu, /get_customer_menu_version/);
 });
 
+test("all menu catalog access is scoped to the current table session", () => {
+  const route = source("src/features/menu/components/product-details-route.tsx");
+  const menu = source("src/features/menu/services/supabase-menu.service.ts");
+  assert.match(route, /getSupabaseMenuCatalog\(\{ tableId \}\)/);
+  assert.match(route, /getSupabaseMenuCatalog\(\{ forceRefresh: true, tableId \}\)/);
+  assert.match(menu, /getSupabaseMenuCatalog\(options: \{ forceRefresh\?: boolean; tableId: number \}\)/);
+});
+
 test("table session bootstrap uses bounded secure RPCs", () => {
   const session = source("src/features/table-session/services/local-table-session.service.ts");
   assert.match(session, /rpc\("customer_resolve_table"/);
@@ -42,4 +50,21 @@ test("remote product images use the Next optimizer instead of direct full-size d
   assert.doesNotMatch(image, /\bunoptimized\s*(?:\/?>|=\{true\})/);
   assert.match(image, /unoptimized=\{currentSrc\.startsWith\("data:image\/"\)\}/);
   assert.match(config, /\/storage\/v1\/object\/public\/product-images\/\*\*/);
+});
+
+test("bill requests are deduplicated in the client and rejected after settlement", () => {
+  const service = source("src/features/table-navigation/services/table-service-request.service.ts");
+  const tracking = source("src/features/table-navigation/components/animated-order-tracking-screen.tsx");
+  const utility = source("src/features/table-navigation/components/table-utility-screen.tsx");
+  const migration = source("supabase/migrations/202609210007_harden_bill_request_session_state.sql");
+  assert.match(service, /inFlightRequests/);
+  assert.match(service, /existingRequest/);
+  assert.match(tracking, /billRequestSubmitting/);
+  assert.match(utility, /submittingService/);
+  assert.match(utility, /succeeded = true/);
+  assert.match(utility, /تعذر إرسال الطلب/);
+  assert.match(tracking, /billRequestError/);
+  assert.match(migration, /v_status IN \('open', 'ordering'\)/);
+  assert.match(migration, /session_has_paid_payment/);
+  assert.match(migration, /service_requests_one_open_bill_per_session/);
 });

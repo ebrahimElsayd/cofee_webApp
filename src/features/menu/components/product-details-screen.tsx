@@ -149,7 +149,24 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
     } catch (error) {
       console.error("[Cart] Failed to add product", error);
       setIsSaving(false);
-      setCustomizationMessage("تعذّرت إضافة المنتج. حاول مرة أخرى.");
+      const errorMessage = error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null
+          ? [
+              "message" in error ? error.message : null,
+              "details" in error ? error.details : null,
+              "hint" in error ? error.hint : null,
+              "code" in error ? error.code : null,
+            ].filter((value): value is string => typeof value === "string").join(" ")
+          : String(error);
+      // A paid session is intentionally locked by the database. Do not tell the
+      // guest to retry, because that would only repeat a request that cannot be
+      // accepted until the cashier closes the table and a new session is opened.
+      if (/تم دفع حساب|payment_pending|settled|paid session|table bill is paid|already paid|close the visit|close the table/i.test(errorMessage)) {
+        setCustomizationMessage("تم تحصيل حساب هذه الجلسة. اطلب من الكاشير إغلاق الطاولة ثم امسح رمز الطاولة لبدء طلب جديد.");
+      } else {
+        setCustomizationMessage("تعذّرت إضافة المنتج. حاول مرة أخرى.");
+      }
     }
   }
 
