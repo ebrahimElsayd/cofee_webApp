@@ -1,10 +1,10 @@
-const ACTIVE_SESSION_KEY = "kings-cafe:active-table-session";
+import { getStoredTableSession } from "./local-table-session.service";
 
 type ActiveResolution = { tableId: number; sessionId: string };
 
 function getActiveResolution(tableId: number): ActiveResolution | null {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(ACTIVE_SESSION_KEY) || "null") as Partial<ActiveResolution> | null;
+    const parsed = getStoredTableSession(tableId);
     return parsed?.tableId === tableId && typeof parsed.sessionId === "string" && parsed.sessionId
       ? { tableId, sessionId: parsed.sessionId }
       : null;

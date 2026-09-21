@@ -5,6 +5,7 @@ import type {
 } from "../types/draft-cart";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { generateSafeUUID } from "@/shared/utils/uuid";
+import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
 
 const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 const ACTIVE_SESSION_KEY = "kings-cafe:active-table-session";
@@ -249,27 +250,23 @@ type SupabaseCartRow = {
   } | null;
 };
 
-function getActiveSessionPointer(): ActiveSessionPointer | null {
-  try {
-    const raw = window.localStorage.getItem(ACTIVE_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<ActiveSessionPointer>;
-    return typeof parsed.sessionId === "string" && typeof parsed.tableId === "number" && Number.isInteger(parsed.tableId) && typeof parsed.cafeId === "string"
-      ? { sessionId: parsed.sessionId, tableId: parsed.tableId, cafeId: parsed.cafeId }
-      : null;
-  } catch {
-    return null;
-  }
+function getActiveSessionPointer(tableId: number): ActiveSessionPointer | null {
+  return getStoredTableSession(tableId);
 }
 
 function resetLocalTableContext(pointer: ActiveSessionPointer | null, requestedTableId: number) {
-  const tableIds = new Set([requestedTableId, pointer?.tableId].filter((value): value is number => typeof value === "number"));
+  // An in-flight validation of an old session must not clear a newly scanned one.
+  if (!pointer || pointer.tableId !== requestedTableId || getStoredTableSession(requestedTableId)?.sessionId !== pointer.sessionId) return;
+  const tableIds = new Set([requestedTableId]);
   const hadStoredContext = window.localStorage.getItem(ACTIVE_SESSION_KEY) !== null || [...tableIds].some((tableId) =>
     window.localStorage.getItem(getStorageKey(tableId)) !== null ||
     window.localStorage.getItem(getSubmittedOrderStorageKey(tableId)) !== null ||
     window.localStorage.getItem(getSubmittedOrderHistoryStorageKey(tableId)) !== null,
   );
-  window.localStorage.removeItem(ACTIVE_SESSION_KEY);
+  if (getStoredTableSession()?.sessionId === pointer.sessionId) {
+    window.localStorage.removeItem(ACTIVE_SESSION_KEY);
+  }
+  window.localStorage.removeItem(`${ACTIVE_SESSION_KEY}:${requestedTableId}`);
   for (const tableId of tableIds) {
     window.localStorage.removeItem(getStorageKey(tableId));
     window.localStorage.removeItem(getSubmittedOrderStorageKey(tableId));
@@ -385,11 +382,10 @@ async function getVerifiedSessionId(tableId: number): Promise<string> {
 }
 
 async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
-  const pointer = getActiveSessionPointer();
+  const pointer = getActiveSessionPointer(tableId);
   const requestedCafeId = getRequestedCafeId();
   if (!pointer || pointer.tableId !== tableId || (requestedCafeId && pointer.cafeId !== requestedCafeId)) {
-    resetLocalTableContext(pointer, tableId);
-    throw new Error("Scan the table QR code again.");
+    throw new Error("TABLE_SESSION_CONTEXT_MISSING: Scan the table QR code again.");
   }
 
   const supabase = createSupabaseBrowserClient();
@@ -410,9 +406,15 @@ async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
       throw new Error("تم دفع حساب هذه الجلسة. اطلب من الكاشير إغلاق الطاولة قبل بدء طلب جديد.");
     }
   }
-  if (!row || !table || !ORDERABLE_SESSION_STATUSES.has(row.status) || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+  if (row?.status === "closed") {
     resetLocalTableContext(pointer, tableId);
     throw new Error("The table session is no longer active.");
+  }
+  if (!row || !table || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+    throw new Error("TABLE_SESSION_ACCESS_UNAVAILABLE");
+  }
+  if (!ORDERABLE_SESSION_STATUSES.has(row.status)) {
+    throw new Error("TABLE_SESSION_NOT_ORDERABLE");
   }
   return { ...pointer, tableUuid: row.table_id };
 }

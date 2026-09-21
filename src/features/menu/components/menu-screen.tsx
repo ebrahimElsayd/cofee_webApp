@@ -11,6 +11,7 @@ import {
 import { getCachedMenuCatalog, getSupabaseMenuCatalog, subscribeToMenuCatalog } from "../services/supabase-menu.service";
 import type { MenuCategoryId, MenuProduct } from "../types/menu";
 import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
+import { TableSessionClosedError, validateActiveTableSession } from "@/features/table-navigation/services/supabase-order-tracking.service";
 import styles from "./menu-screen.module.css";
 
 type MenuScreenProps = {
@@ -64,8 +65,15 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
     };
     const refreshCatalog = (forceRefresh = false) => getSupabaseMenuCatalog({ forceRefresh, tableId }).then(applyCatalog);
 
-    void refreshCatalog()
-      .catch(() => { if (active) { setCatalogError("تعذر تحميل قائمة المنتجات من الخادم."); setIsCatalogLoading(false); } });
+    void validateActiveTableSession(tableId)
+      .then(() => refreshCatalog())
+      .catch((error) => {
+        if (error instanceof TableSessionClosedError) {
+          router.replace(`/table/${tableId}?session=closed`);
+          return;
+        }
+        if (active) { setCatalogError("تعذر تحميل قائمة المنتجات من الخادم."); setIsCatalogLoading(false); }
+      });
     const unsubscribeCatalog = subscribeToMenuCatalog((catalog) => {
       if (!active) return;
       setCatalogCategories(catalog.categories);
