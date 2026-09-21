@@ -75,7 +75,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
         }
       } catch (error) {
         if (error instanceof TableSessionClosedError) {
-          router.replace("/?session=closed");
+          router.replace(`/?session=closed&table=${tableId}`);
           return;
         }
         if (active) setOrder(null);

@@ -69,7 +69,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
       .then(() => refreshCatalog())
       .catch((error) => {
         if (error instanceof TableSessionClosedError) {
-          router.replace(`/table/${tableId}?session=closed`);
+          router.replace(`/?session=closed&table=${tableId}`);
           return;
         }
         if (active) { setCatalogError("تعذر تحميل قائمة المنتجات من الخادم."); setIsCatalogLoading(false); }

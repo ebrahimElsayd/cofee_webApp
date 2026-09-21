@@ -26,7 +26,7 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
       .catch((error) => {
         if (!active) return;
         if (error instanceof TableSessionClosedError) {
-          router.replace(`/table/${tableId}?session=closed`);
+          router.replace(`/?session=closed&table=${tableId}`);
           return;
         }
         setErrorMessage("تعذّر التحقق من جلسة الطاولة أو تحميل المنتج. تحقق من الاتصال وأعد المحاولة، أو امسح رمز الطاولة إذا لم تبدأ جلسة على هذا الجهاز.");

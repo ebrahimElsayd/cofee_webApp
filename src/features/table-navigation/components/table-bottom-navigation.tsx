@@ -68,7 +68,7 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
         if (options.session) await validateActiveTableSession(tableId);
         if (!active) return;
       } catch (error) {
-        if (error instanceof TableSessionClosedError && active) router.replace(tableRootFor(tableId, cafeId));
+        if (error instanceof TableSessionClosedError && active) router.replace(`/?session=closed&table=${tableId}`);
         /* Realtime and the order screen polling remain independent. */
       }
     };
@@ -156,10 +156,6 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
       </nav>
     </>
   );
-}
-
-function tableRootFor(tableId: number, cafeId: string | null) {
-  return cafeId ? `/table/${tableId}?cafe=${encodeURIComponent(cafeId)}` : `/table/${tableId}`;
 }
 
 function NavIcon({ name }: { name: "menu" | "cart" | "track" | "service" }) {
