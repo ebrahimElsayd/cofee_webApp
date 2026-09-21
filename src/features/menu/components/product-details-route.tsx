@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ProductDetailsScreen } from "@/features/menu/components/product-details-screen";
 import { getSupabaseMenuCatalog } from "@/features/menu/services/supabase-menu.service";
+import { TableSessionClosedError, validateActiveTableSession } from "@/features/table-navigation/services/supabase-order-tracking.service";
 import type { MenuProduct } from "@/features/menu/types/menu";
 
 export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number; productSlug: string }) {
+  const router = useRouter();
   const [product, setProduct] = useState<MenuProduct | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
@@ -25,7 +28,8 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
       );
     };
 
-    void getSupabaseMenuCatalog({ tableId })
+    void validateActiveTableSession(tableId)
+      .then(() => getSupabaseMenuCatalog({ tableId }))
       .then(async (catalog) => {
         let match = findProduct(catalog);
         // A catalog Realtime event can update the menu card just before this
@@ -38,9 +42,15 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
         setProduct(match ?? null);
         setState(match ? "ready" : "error");
       })
-      .catch(() => { if (active) setState("error"); });
+      .catch((error) => {
+        if (error instanceof TableSessionClosedError) {
+          router.replace(`/table/${tableId}?session=closed`);
+          return;
+        }
+        if (active) setState("error");
+      });
     return () => { active = false; };
-  }, [productSlug, tableId]);
+  }, [productSlug, router, tableId]);
 
   if (state === "loading") return <main style={{ minHeight: "100svh", display: "grid", placeItems: "center", color: "#e0a020", background: "#0b0c0a" }}>Loading product…</main>;
   if (!product) return <main style={{ minHeight: "100svh", display: "grid", placeItems: "center", color: "#f2ede4", background: "#0b0c0a" }}>Product unavailable</main>;
