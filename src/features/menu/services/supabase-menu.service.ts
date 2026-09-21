@@ -53,6 +53,7 @@ export function getCachedMenuCatalog(tableId?: number): MenuCatalog | null {
 export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) => void, tableId?: number): () => void {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return () => undefined;
+  if (typeof tableId !== "number" || !Number.isSafeInteger(tableId)) return () => undefined;
   const cafeId = getActiveCafeId(tableId);
   if (!cafeId) return () => undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -134,7 +135,7 @@ export function subscribeToMenuCatalog(onCatalogChanged: (catalog: MenuCatalog) 
   };
 }
 
-export async function getSupabaseMenuCatalog(options?: { forceRefresh?: boolean; tableId?: number }): Promise<MenuCatalog> {
+export async function getSupabaseMenuCatalog(options: { forceRefresh?: boolean; tableId: number }): Promise<MenuCatalog> {
   if (options?.forceRefresh) {
     catalogCache = null;
     catalogCacheCafeId = null;
