@@ -25,14 +25,14 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
       );
     };
 
-    void getSupabaseMenuCatalog()
+    void getSupabaseMenuCatalog({ tableId })
       .then(async (catalog) => {
         let match = findProduct(catalog);
         // A catalog Realtime event can update the menu card just before this
         // route is opened. Force one fresh read so details never use an older
         // module cache and incorrectly report a newly-created product missing.
         if (!match) {
-          match = findProduct(await getSupabaseMenuCatalog({ forceRefresh: true }));
+          match = findProduct(await getSupabaseMenuCatalog({ forceRefresh: true, tableId }));
         }
         if (!active) return;
         setProduct(match ?? null);
@@ -40,7 +40,7 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
       })
       .catch(() => { if (active) setState("error"); });
     return () => { active = false; };
-  }, [productSlug]);
+  }, [productSlug, tableId]);
 
   if (state === "loading") return <main style={{ minHeight: "100svh", display: "grid", placeItems: "center", color: "#e0a020", background: "#0b0c0a" }}>Loading product…</main>;
   if (!product) return <main style={{ minHeight: "100svh", display: "grid", placeItems: "center", color: "#f2ede4", background: "#0b0c0a" }}>Product unavailable</main>;
