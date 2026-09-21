@@ -25,7 +25,11 @@ async function requestTableServiceOnce(sessionId: string, type: "waiter" | "tiss
     if (result.error) throw result.error;
     return result.data as string;
   }
-  const result = await supabase.from("service_requests").insert({ session_id: sessionId, type, note: note ?? null }).select("id").single();
+  const result = await supabase.rpc("request_table_service", {
+    p_session_id: sessionId,
+    p_type: type,
+    p_note: note ?? null,
+  });
   if (result.error) throw result.error;
-  return result.data.id;
+  return result.data as string;
 }
