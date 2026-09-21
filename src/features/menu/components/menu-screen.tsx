@@ -11,7 +11,7 @@ import {
 import { getCachedMenuCatalog, getSupabaseMenuCatalog, subscribeToMenuCatalog } from "../services/supabase-menu.service";
 import type { MenuCategoryId, MenuProduct } from "../types/menu";
 import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
-import { TableSessionClosedError, validateActiveTableSession } from "@/features/table-navigation/services/supabase-order-tracking.service";
+import { TableSessionClosedError, validateOrderableTableSession } from "@/features/table-navigation/services/supabase-order-tracking.service";
 import styles from "./menu-screen.module.css";
 
 type MenuScreenProps = {
@@ -65,7 +65,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
     };
     const refreshCatalog = (forceRefresh = false) => getSupabaseMenuCatalog({ forceRefresh, tableId }).then(applyCatalog);
 
-    void validateActiveTableSession(tableId)
+    void validateOrderableTableSession(tableId)
       .then(() => refreshCatalog())
       .catch((error) => {
         if (error instanceof TableSessionClosedError) {

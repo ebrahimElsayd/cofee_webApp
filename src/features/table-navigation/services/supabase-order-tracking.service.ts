@@ -107,29 +107,30 @@ export function getActiveTableSessionId(tableId?: number) {
   return getActiveTableSessionPointer(tableId)?.sessionId ?? null;
 }
 
-async function validateSessionForTable(tableId: number): Promise<ActiveSessionPointer & { status: "open" | "ordering" | "payment_pending" }> {
+async function validateSessionForTable(tableId: number): Promise<ActiveSessionPointer & { status: "open" | "ordering" | "payment_pending"; sessionStatus: string; hasPaidPayment: boolean }> {
   const pointer = getActiveTableSessionPointer(tableId);
-  if (!pointer || pointer.tableId !== tableId) throw new TableSessionClosedError();
+  if (!pointer || pointer.tableId !== tableId) throw new Error("TABLE_SESSION_CONTEXT_MISSING");
   const supabase = createSupabaseBrowserClient();
   const result = await supabase.from("table_sessions").select("id,table_id,status,cafe_tables!inner(table_number,cafe_id)").eq("id", pointer.sessionId).maybeSingle();
   if (result.error) throw result.error;
   const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
   const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
   let effectiveStatus = row?.status;
+  let hasPaidPayment = false;
   if (row?.status === "payment_pending") {
     const paid = await supabase.from("payments").select("id").eq("session_id", row.id).eq("status", "paid").limit(1).maybeSingle();
     if (paid.error) throw paid.error;
-    if (paid.data) {
-      const globalPointer = getActiveTableSessionPointer();
-      if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
-      window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
-      window.localStorage.removeItem(`kings-cafe:table:${tableId}:draft-cart:v2`);
-      window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
-      throw new TableSessionClosedError();
-    }
-    effectiveStatus = "ordering";
+    hasPaidPayment = Boolean(paid.data);
+    if (!hasPaidPayment) effectiveStatus = "ordering";
   }
-  if (!row || !table || !ACTIVE_SESSION_STATUSES.has(effectiveStatus ?? "") || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+  if (!row || !table || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+    throw new Error("TABLE_SESSION_ACCESS_UNAVAILABLE");
+  }
+  if (row.status === "closed") {
+    // A newer scan may have replaced the pointer while validation was in flight.
+    if (getActiveTableSessionPointer(tableId)?.sessionId !== pointer.sessionId) {
+      throw new Error("TABLE_SESSION_CHANGED");
+    }
     const globalPointer = getActiveTableSessionPointer();
     if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
     window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
@@ -137,11 +138,18 @@ async function validateSessionForTable(tableId: number): Promise<ActiveSessionPo
     window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
     throw new TableSessionClosedError();
   }
-  return { ...pointer, status: effectiveStatus as "open" | "ordering" | "payment_pending" };
+  if (!ACTIVE_SESSION_STATUSES.has(effectiveStatus ?? "")) throw new Error("TABLE_SESSION_ACCESS_UNAVAILABLE");
+  return { ...pointer, status: effectiveStatus as "open" | "ordering" | "payment_pending", sessionStatus: row.status, hasPaidPayment };
 }
 
 export async function validateActiveTableSession(tableId: number): Promise<void> {
   await validateSessionForTable(tableId);
+}
+
+export async function validateOrderableTableSession(tableId: number): Promise<void> {
+  const session = await validateSessionForTable(tableId);
+  if (session.hasPaidPayment) throw new TableSessionClosedError();
+  if (session.sessionStatus === "payment_pending") throw new Error("TABLE_SESSION_NOT_ORDERABLE");
 }
 
 export async function getCustomerNotifications(tableId?: number): Promise<CustomerRemoteNotification[]> {
