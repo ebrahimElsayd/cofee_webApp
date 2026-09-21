@@ -51,3 +51,20 @@ test("remote product images use the Next optimizer instead of direct full-size d
   assert.match(image, /unoptimized=\{currentSrc\.startsWith\("data:image\/"\)\}/);
   assert.match(config, /\/storage\/v1\/object\/public\/product-images\/\*\*/);
 });
+
+test("bill requests are deduplicated in the client and rejected after settlement", () => {
+  const service = source("src/features/table-navigation/services/table-service-request.service.ts");
+  const tracking = source("src/features/table-navigation/components/animated-order-tracking-screen.tsx");
+  const utility = source("src/features/table-navigation/components/table-utility-screen.tsx");
+  const migration = source("supabase/migrations/202609210007_harden_bill_request_session_state.sql");
+  assert.match(service, /inFlightRequests/);
+  assert.match(service, /existingRequest/);
+  assert.match(tracking, /billRequestSubmitting/);
+  assert.match(utility, /submittingService/);
+  assert.match(utility, /succeeded = true/);
+  assert.match(utility, /تعذر إرسال الطلب/);
+  assert.match(tracking, /billRequestError/);
+  assert.match(migration, /v_status IN \('open', 'ordering'\)/);
+  assert.match(migration, /session_has_paid_payment/);
+  assert.match(migration, /service_requests_one_open_bill_per_session/);
+});

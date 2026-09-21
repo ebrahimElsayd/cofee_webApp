@@ -18,6 +18,8 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
   const [billRequested, setBillRequested] = useState(false);
   const [billReminderAvailable, setBillReminderAvailable] = useState(false);
   const [billReminderCycle, setBillReminderCycle] = useState(0);
+  const [billRequestSubmitting, setBillRequestSubmitting] = useState(false);
+  const [billRequestError, setBillRequestError] = useState("");
 
   const activeItems = useMemo(() => order?.items.filter((item) => getItemStatus(item) !== "cancelled") ?? [], [order]);
   const readyItems = activeItems.filter((item) => ["ready", "served"].includes(getItemStatus(item))).length;
@@ -34,13 +36,16 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
   const isSettled = order?.sessionStatus === "payment_pending";
 
   async function requestBill() {
-    if ((billRequested && !billReminderAvailable) || !allReady) return;
+    if (billRequestSubmitting || (billRequested && !billReminderAvailable) || !allReady) return;
+    setBillRequestSubmitting(true);
+    setBillRequestError("");
     try {
       await requestTableService("bill", undefined, tableId);
       setBillRequested(true);
       setBillReminderAvailable(false);
       setBillReminderCycle((cycle) => cycle + 1);
-    } catch { /* keep the action retryable when the request did not reach Supabase */ }
+    } catch { setBillRequestError("تعذر إرسال طلب الحساب. تحقق من الاتصال وحاول مرة أخرى."); }
+    finally { setBillRequestSubmitting(false); }
   }
 
   useEffect(() => {
@@ -138,11 +143,12 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
                 );
               })}
             </section>
-            <button type="button" className={styles.billButton} onClick={() => void requestBill()} disabled={isSettled || (billRequested && !billReminderAvailable) || !allReady}>
+            <button type="button" className={styles.billButton} onClick={() => void requestBill()} disabled={isSettled || billRequestSubmitting || (billRequested && !billReminderAvailable) || !allReady}>
               <span aria-hidden="true">▣</span>
-              <strong>{isSettled ? "تم دفع الحساب · بانتظار المغادرة" : billRequested ? (billReminderAvailable ? "تذكير الكاشير" : "تم طلب الحساب") : allReady ? "إنهاء الجلسة وطلب الحساب" : "الحساب بعد جاهزية الطلب"}</strong>
+              <strong>{isSettled ? "تم دفع الحساب · بانتظار المغادرة" : billRequestSubmitting ? "جاري إرسال طلب الحساب…" : billRequested ? (billReminderAvailable ? "تذكير الكاشير" : "تم طلب الحساب") : allReady ? "إنهاء الجلسة وطلب الحساب" : "الحساب بعد جاهزية الطلب"}</strong>
               <small>{isSettled ? "لا يمكن إضافة طلب جديد إلى جلسة مدفوعة" : billRequested ? "سيأتي الباريستا لمراجعة الحساب" : allReady ? "الحساب التفصيلي لكل شخص ومشروبه" : "انتظر حتى تصبح كل المشروبات جاهزة"}</small>
             </button>
+            {billRequestError && <p role="alert" className={styles.serviceNote}>{billRequestError}</p>}
             <p className={styles.serviceNote}>عند جاهزية أي مشروب ستتغير بطاقته إلى «جاهز». استلمه من الكاونتر أو انتظر النادل حسب نظام الكافيه.</p>
           </>
         )}
