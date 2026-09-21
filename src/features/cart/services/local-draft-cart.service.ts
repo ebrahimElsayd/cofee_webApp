@@ -224,6 +224,10 @@ export async function removeFromSharedDraftCart(tableId: number, itemId: string)
   if (!itemId) throw new Error("Cart item is required");
   const { error } = await supabase.from("cart_items").delete().eq("id", itemId);
   if (error) throw error;
+  // Keep the persistent bottom-navigation badge in sync with the remote cart.
+  // The badge listens to this event because a Supabase delete does not emit a
+  // browser `storage` event in the same tab.
+  window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
 }
 
 type SupabaseCartRow = {
