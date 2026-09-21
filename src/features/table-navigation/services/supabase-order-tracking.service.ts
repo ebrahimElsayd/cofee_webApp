@@ -29,7 +29,6 @@ const ACTIVE_SESSION_KEY_PREFIX = "kings-cafe:active-table-session:";
 const ACTIVE_SESSION_STATUSES = new Set(["open", "ordering", "payment_pending"]);
 const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string };
-type ValidatedSession = ActiveSessionPointer & { status: "open" | "ordering" | "payment_pending" };
 export type TableOrderUpdateKind = "orders" | "order_items" | "session" | "notifications";
 const trackingListeners = new Set<(updates: ReadonlySet<TableOrderUpdateKind>) => void>();
 const pendingTrackingUpdates = new Set<TableOrderUpdateKind>();
@@ -39,8 +38,6 @@ let trackingNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 let trackingActive = false;
 let trackingClosing = false;
 let trackingTableId: number | null = null;
-let validatedSession: { sessionId: string; checkedAt: number } | null = null;
-const SESSION_VALIDATION_TTL_MS = 30_000;
 const orderRequests = new Map<string, Promise<SubmittedTableOrder | null>>();
 
 async function ensureTrackingChannel(tableId?: number) {
@@ -110,7 +107,7 @@ export function getActiveTableSessionId(tableId?: number) {
   return getActiveTableSessionPointer(tableId)?.sessionId ?? null;
 }
 
-async function validateSessionForTable(tableId: number): Promise<ValidatedSession> {
+async function validateSessionForTable(tableId: number): Promise<ActiveSessionPointer & { status: "open" | "ordering" | "payment_pending" }> {
   const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer || pointer.tableId !== tableId) throw new TableSessionClosedError();
   const supabase = createSupabaseBrowserClient();
@@ -129,12 +126,10 @@ async function validateSessionForTable(tableId: number): Promise<ValidatedSessio
     if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
     window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
     window.localStorage.removeItem(`kings-cafe:table:${tableId}:draft-cart:v2`);
-    validatedSession = null;
     window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
     throw new TableSessionClosedError();
   }
-  validatedSession = { sessionId: pointer.sessionId, checkedAt: Date.now() };
-  return { ...pointer, status: effectiveStatus as ValidatedSession["status"] };
+  return { ...pointer, status: effectiveStatus as "open" | "ordering" | "payment_pending" };
 }
 
 export async function validateActiveTableSession(tableId: number): Promise<void> {

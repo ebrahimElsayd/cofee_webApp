@@ -29,6 +29,14 @@ test("menu uses persistent versioned cache and merges concurrent loads", () => {
   assert.match(menu, /get_customer_menu_version/);
 });
 
+test("all menu catalog access is scoped to the current table session", () => {
+  const route = source("src/features/menu/components/product-details-route.tsx");
+  const menu = source("src/features/menu/services/supabase-menu.service.ts");
+  assert.match(route, /getSupabaseMenuCatalog\(\{ tableId \}\)/);
+  assert.match(route, /getSupabaseMenuCatalog\(\{ forceRefresh: true, tableId \}\)/);
+  assert.match(menu, /getSupabaseMenuCatalog\(options: \{ forceRefresh\?: boolean; tableId: number \}\)/);
+});
+
 test("table session bootstrap uses bounded secure RPCs", () => {
   const session = source("src/features/table-session/services/local-table-session.service.ts");
   assert.match(session, /rpc\("customer_resolve_table"/);
