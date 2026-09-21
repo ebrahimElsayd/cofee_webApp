@@ -164,6 +164,8 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
       // accepted until the cashier closes the table and a new session is opened.
       if (/تم دفع حساب|payment_pending|settled|paid session|table bill is paid|already paid|close the visit|close the table/i.test(errorMessage)) {
         setCustomizationMessage("تم تحصيل حساب هذه الجلسة. اطلب من الكاشير إغلاق الطاولة ثم امسح رمز الطاولة لبدء طلب جديد.");
+      } else if (/table session is no longer active|scan the table qr|no active supabase table session|session.*not found|not orderable/i.test(errorMessage)) {
+        setCustomizationMessage("انتهت جلسة هذه الطاولة. امسح رمز QR مرة أخرى لبدء جلسة جديدة.");
       } else {
         setCustomizationMessage("تعذّرت إضافة المنتج. حاول مرة أخرى.");
       }
