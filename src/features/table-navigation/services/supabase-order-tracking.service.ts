@@ -119,7 +119,15 @@ async function validateSessionForTable(tableId: number): Promise<ActiveSessionPo
   if (row?.status === "payment_pending") {
     const paid = await supabase.from("payments").select("id").eq("session_id", row.id).eq("status", "paid").limit(1).maybeSingle();
     if (paid.error) throw paid.error;
-    if (!paid.data) effectiveStatus = "ordering";
+    if (paid.data) {
+      const globalPointer = getActiveTableSessionPointer();
+      if (globalPointer?.sessionId === pointer.sessionId) window.localStorage.removeItem(ACTIVE_SESSION_KEY);
+      window.localStorage.removeItem(`${ACTIVE_SESSION_KEY_PREFIX}${tableId}`);
+      window.localStorage.removeItem(`kings-cafe:table:${tableId}:draft-cart:v2`);
+      window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+      throw new TableSessionClosedError();
+    }
+    effectiveStatus = "ordering";
   }
   if (!row || !table || !ACTIVE_SESSION_STATUSES.has(effectiveStatus ?? "") || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
     const globalPointer = getActiveTableSessionPointer();
