@@ -32,8 +32,9 @@ test("menu uses persistent versioned cache and merges concurrent loads", () => {
 test("all menu catalog access is scoped to the current table session", () => {
   const route = source("src/features/menu/components/product-details-route.tsx");
   const menu = source("src/features/menu/services/supabase-menu.service.ts");
-  assert.match(route, /getSupabaseMenuCatalog\(\{ tableId \}\)/);
-  assert.match(route, /getSupabaseMenuCatalog\(\{ forceRefresh: true, tableId \}\)/);
+  assert.match(route, /getSupabaseMenuProduct\(\{ tableId, productSlug \}\)/);
+  assert.match(menu, /getSupabaseMenuProduct\(options: \{ tableId: number; productSlug: string \}\)/);
+  assert.match(menu, /\.eq\("cafe_id", cafeId\)\.eq\("slug", slug\)/);
   assert.match(menu, /getSupabaseMenuCatalog\(options: \{ forceRefresh\?: boolean; tableId: number \}\)/);
 });
 

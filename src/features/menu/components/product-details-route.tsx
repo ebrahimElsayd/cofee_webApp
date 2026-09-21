@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProductDetailsScreen } from "@/features/menu/components/product-details-screen";
-import { getSupabaseMenuCatalog } from "@/features/menu/services/supabase-menu.service";
+import { getSupabaseMenuProduct } from "@/features/menu/services/supabase-menu.service";
 import { TableSessionClosedError, validateOrderableTableSession } from "@/features/table-navigation/services/supabase-order-tracking.service";
 import type { MenuProduct } from "@/features/menu/types/menu";
 
@@ -16,30 +16,9 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
 
   useEffect(() => {
     let active = true;
-    const findProduct = (catalog: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>) => {
-      let decodedSlug = productSlug;
-      try {
-        decodedSlug = decodeURIComponent(productSlug);
-      } catch {
-        // Next normally gives us a decoded segment; keep the original if malformed.
-      }
-      const normalizedSlug = decodedSlug.trim().toLocaleLowerCase();
-      return catalog.products.find((item) =>
-        item.slug === decodedSlug ||
-        item.slug.trim().toLocaleLowerCase() === normalizedSlug,
-      );
-    };
-
     void validateOrderableTableSession(tableId)
-      .then(() => getSupabaseMenuCatalog({ tableId }))
-      .then(async (catalog) => {
-        let match = findProduct(catalog);
-        // A catalog Realtime event can update the menu card just before this
-        // route is opened. Force one fresh read so details never use an older
-        // module cache and incorrectly report a newly-created product missing.
-        if (!match) {
-          match = findProduct(await getSupabaseMenuCatalog({ forceRefresh: true, tableId }));
-        }
+      .then(() => getSupabaseMenuProduct({ tableId, productSlug }))
+      .then((match) => {
         if (!active) return;
         setProduct(match ?? null);
         setState(match ? "ready" : "error");
