@@ -43,6 +43,12 @@ test("only the first submission is owner-controlled", () => {
   assert.match(screen, /بعد أول طلب يمكن لأي ضيف/);
 });
 
+test("cart realtime refresh does not reload the menu catalog", () => {
+  const screen = source("src/features/cart/components/cart-screen.tsx");
+  assert.match(screen, /refreshCart\(\{ checkCatalog: true \}\)/);
+  assert.match(screen, /subscribeToSharedDraftCart\(tableId, \(\) => \{ void refreshCart\(\); \}\)/);
+});
+
 test("customer order tracking is scoped to the active session", () => {
   const tracking = source("src/features/table-navigation/services/supabase-order-tracking.service.ts");
   assert.match(tracking, /table:\s*"orders",\s*filter:\s*`session_id=eq\.\$\{pointer\.sessionId\}`/);

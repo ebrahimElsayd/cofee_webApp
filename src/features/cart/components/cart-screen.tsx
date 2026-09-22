@@ -43,7 +43,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
     setIsAvailabilityChecking(false);
   }
 
-  const refreshCart = useCallback(async () => {
+  const refreshCart = useCallback(async ({ checkCatalog = false }: { checkCatalog?: boolean } = {}) => {
     try {
       const cart = await getSharedDraftCartState(tableId);
       setItems(cart.items);
@@ -53,8 +53,10 @@ export function CartScreen({ tableId }: { tableId: number }) {
       // Keep the persistent bottom-navigation badge aligned with the canonical
       // Supabase cart after every initial or realtime refresh.
       window.dispatchEvent(new CustomEvent(getCartUpdatedEventName()));
-      const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
-      reconcileAvailability(catalog.products, cart.items);
+      if (checkCatalog) {
+        const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
+        reconcileAvailability(catalog.products, cart.items);
+      }
     } catch {
       setItems([]);
     } finally {
@@ -66,7 +68,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
     let unsubscribe = () => {};
     let disposed = false;
     const timer = window.setTimeout(() => {
-      void refreshCart();
+      void refreshCart({ checkCatalog: true });
       void subscribeToSharedDraftCart(tableId, () => { void refreshCart(); })
         .then((cleanup) => {
           if (disposed) cleanup();
@@ -95,7 +97,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
   async function removeItem(itemId: string) {
     try {
       await removeFromSharedDraftCart(tableId, itemId);
-      await refreshCart();
+      await refreshCart({ checkCatalog: true });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "تعذر حذف المنتج");
     }
