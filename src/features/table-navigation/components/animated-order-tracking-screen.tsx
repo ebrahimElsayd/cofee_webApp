@@ -129,7 +129,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
               <div className={`${styles.journeyNode} ${journeyStage === 3 ? styles.done : ""}`}><i>{journeyStage === 3 ? "✓" : "3"}</i><b>جاهز</b><small>Ready</small></div>
             </section>
             <section className={styles.drinks}>
-              <header><div><h2>مشروباتك</h2><p>كل مشروب له حالة مستقلة</p></div><b>{order.items.length} عناصر</b></header>
+              <header><div><h2>مشروباتك</h2><p>كل مشروب له حالة مستقلة</p></div><b>{activeItems.reduce((sum, item) => sum + item.quantity, 0)} عناصر</b></header>
               {order.items.map((item, index) => {
                 const itemStatus = getItemStatus(item);
                 const itemReady = itemStatus === "ready" || itemStatus === "served";
@@ -137,7 +137,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
                 return (
                 <article className={`${styles.drink} ${itemReady ? styles.drinkReady : ""} ${itemCancelled ? styles.drinkCancelled : ""}`} key={item.id} style={{ "--item-index": index } as React.CSSProperties}>
                   <div className={styles.image}><ResilientImage src={item.productImageUrl} fallbackSrc={`/images/products/${item.productSlug}.webp`} alt="" fill sizes="56px" /></div>
-                  <div className={styles.copy}><h3 lang="en">{item.productName}</h3><p>{item.recipientName} · {item.productNameAr}</p></div>
+                  <div className={styles.copy}><h3 lang="en">{item.productName}</h3><p>{item.recipientName} · {item.productNameAr}</p><small className={styles.itemMeta}>×{item.quantity}{item.selectedOptions.length ? ` · ${item.selectedOptions.map((option) => selectedCustomizationLabel(option)).filter(Boolean).join(" · ")}` : ""}</small></div>
                   <div className={styles.status}><i />{itemCancelled ? <><strong>✕ تم إلغاء المنتج</strong><small>لن يُحتسب في الحساب</small></> : itemReady ? <><strong>{itemStatus === "served" ? "☕ تم التقديم ✓" : "☕✨ جاهز ✓"}</strong><small>{itemStatus === "served" ? "بالهنا والشفا" : "استلمه الآن"}</small></> : itemStatus === "preparing" ? <><strong>قيد التحضير</strong><small>الباريستا يجهزه الآن</small></> : <><strong>تم الاستلام</strong><small>في انتظار التحضير</small></>}</div>
                 </article>
                 );
