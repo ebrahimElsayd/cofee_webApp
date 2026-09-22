@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProductDetailsScreen } from "@/features/menu/components/product-details-screen";
-import { getSupabaseMenuProduct } from "@/features/menu/services/supabase-menu.service";
+import { getSupabaseMenuProduct, subscribeToMenuCatalog } from "@/features/menu/services/supabase-menu.service";
 import { TableSessionClosedError, validateOrderableTableSession } from "@/features/table-navigation/services/supabase-order-tracking.service";
 import type { MenuProduct } from "@/features/menu/types/menu";
 
@@ -13,6 +13,7 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const productId = product?.id;
 
   useEffect(() => {
     let active = true;
@@ -34,6 +35,20 @@ export function ProductDetailsRoute({ tableId, productSlug }: { tableId: number;
       });
     return () => { active = false; };
   }, [productSlug, router, tableId, attempt]);
+
+  useEffect(() => {
+    if (!productId) return;
+    return subscribeToMenuCatalog((catalog) => {
+      const refreshed = catalog.products.find((item) => item.id === productId);
+      if (!refreshed) {
+        setProduct(null);
+        setErrorMessage("هذا المنتج لم يعد موجودًا في المنيو الحالية.");
+        setState("error");
+        return;
+      }
+      setProduct(refreshed);
+    }, tableId);
+  }, [productId, tableId]);
 
   if (state === "loading") return <main style={{ minHeight: "100svh", display: "grid", placeItems: "center", color: "#e0a020", background: "#0b0c0a" }}>Loading product…</main>;
   if (state === "error") return <main dir="rtl" style={{ minHeight: "100svh", display: "grid", placeItems: "center", color: "#f2ede4", background: "#0b0c0a", padding: 24 }}><section role="alert"><p>{errorMessage || "هذا المنتج غير موجود في المنيو الحالية."}</p><button type="button" onClick={() => { setState("loading"); setErrorMessage(""); setAttempt((value) => value + 1); }}>إعادة المحاولة</button><p><a href={`/table/${tableId}/menu`}>العودة إلى المينيو</a></p></section></main>;

@@ -11,6 +11,7 @@ import {
 } from "../services/local-draft-cart.service";
 import type { DraftCartItem } from "../types/draft-cart";
 import { selectedCustomizationLabel } from "../utils/selected-customization-labels";
+import { getSupabaseMenuCatalog, subscribeToMenuCatalog } from "@/features/menu/services/supabase-menu.service";
 import styles from "./cart-screen.module.css";
 
 type RecipientOrder = {
@@ -28,10 +29,22 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [blockedProductIds, setBlockedProductIds] = useState<Set<string>>(new Set());
+  const [isAvailabilityChecking, setIsAvailabilityChecking] = useState(true);
+
+  function reconcileAvailability(products: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>["products"], cartItems: DraftCartItem[]) {
+    const availableIds = new Set(products.filter((product) => product.availability === "available").map((product) => product.id));
+    setBlockedProductIds(new Set(cartItems.filter((item) => !availableIds.has(item.productId)).map((item) => item.productId)));
+    setIsAvailabilityChecking(false);
+  }
 
   useEffect(() => {
     function refreshCart() {
-      void getSharedDraftCart(tableId).then(setItems).catch(() => setItems([]));
+      void getSharedDraftCart(tableId).then(async (cartItems) => {
+        setItems(cartItems);
+        const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
+        reconcileAvailability(catalog.products, cartItems);
+      }).catch(() => setItems([]));
       setIsReady(true);
     }
 
@@ -41,6 +54,8 @@ export function CartScreen({ tableId }: { tableId: number }) {
       window.clearTimeout(timer);
     };
   }, [tableId]);
+
+  useEffect(() => subscribeToMenuCatalog((catalog) => reconcileAvailability(catalog.products, items), tableId), [items, tableId]);
 
   const recipientOrders = useMemo(() => groupItemsByRecipient(items), [items]);
   const total = useMemo(
@@ -60,11 +75,19 @@ export function CartScreen({ tableId }: { tableId: number }) {
   }
 
   async function sendCombinedOrder() {
-    if (!tableHost || items.length === 0 || submittedOrderId || isSubmitting) return;
+    if (!tableHost || items.length === 0 || submittedOrderId || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
 
     setIsSubmitting(true);
     setSubmitError("");
     try {
+      const latestCatalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
+      const availableIds = new Set(latestCatalog.products.filter((product) => product.availability === "available").map((product) => product.id));
+      const blocked = new Set(items.filter((item) => !availableIds.has(item.productId)).map((item) => item.productId));
+      setBlockedProductIds(blocked);
+      if (blocked.size > 0) {
+        setSubmitError("بعض المنتجات أصبحت غير متاحة مؤقتًا. احذفها من الكارت لإرسال الطلب.");
+        return;
+      }
       // A failed Supabase write must never silently fall back to local storage:
       // that makes the customer see success while the cashier receives nothing.
       const order = await submitSupabaseTableOrder({ tableId, items, submittedBy: tableHost });
@@ -142,6 +165,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
                   order={order}
                   isHost={index === 0}
                   onRemoveItem={removeItem}
+                  blockedProductIds={blockedProductIds}
                 />
               ))}
             </section>
@@ -162,8 +186,9 @@ export function CartScreen({ tableId }: { tableId: number }) {
             </section>
 
             <footer className={styles.actions}>
+              {blockedProductIds.size > 0 && <div className={styles.availabilityWarning} role="alert"><strong>تعذّر إرسال الطلب حاليًا</strong><span>منتج أو أكثر أصبح غير متاح مؤقتًا. احذف المنتجات المحددة ثم أرسل الطلب.</span></div>}
               {submitError && <p role="alert" className={styles.submitError}>{submitError}</p>}
-              <button type="button" onClick={sendCombinedOrder} disabled={Boolean(submittedOrderId) || isSubmitting}>
+              <button type="button" onClick={sendCombinedOrder} disabled={Boolean(submittedOrderId) || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z" /><path d="m10.2 13.8 4-4" /></svg>
                 <span><strong lang="en">Send Combined Table Order</strong><small>إرسال طلب الطاولة مرة واحدة للكاشير</small></span>
                 <b>{itemCount}<small>items</small></b>
@@ -220,10 +245,12 @@ function RecipientOrderCard({
   order,
   isHost,
   onRemoveItem,
+  blockedProductIds,
 }: {
   order: RecipientOrder;
   isHost: boolean;
   onRemoveItem: (itemId: string) => void;
+  blockedProductIds: Set<string>;
 }) {
   return (
     <article className={`${styles.orderGroup} ${isHost ? styles.hostOrder : ""}`}>
@@ -241,13 +268,14 @@ function RecipientOrderCard({
 
       <div className={styles.groupItems}>
         {order.items.map((item) => (
-          <div className={styles.orderItem} key={item.id}>
+          <div className={`${styles.orderItem} ${blockedProductIds.has(item.productId) ? styles.unavailableItem : ""}`} key={item.id}>
             <div className={styles.productImage}>
               <ResilientImage src={item.productImageUrl} fallbackSrc={`/images/products/${item.productSlug}.webp`} alt="" fill sizes="48px" />
             </div>
             <div className={styles.productCopy}>
               <h3 lang="en">{item.productName}</h3>
               <p>{getItemDetails(item)}</p>
+              {blockedProductIds.has(item.productId) && <em>غير متاح مؤقتًا — احذفه لإكمال الطلب</em>}
             </div>
             <span className={styles.quantity}>×{item.quantity}</span>
             <b className={styles.itemPrice}>{item.totalPrice}</b>

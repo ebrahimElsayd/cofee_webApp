@@ -103,3 +103,18 @@ test("unused test categories are hidden without deleting history or active catal
   assert.match(migration, /product\.availability <> 'hidden'/);
   assert.doesNotMatch(migration, /delete from public\.menu_categories/);
 });
+
+test("temporarily unavailable products are consistently blocked across menu, details, and cart", () => {
+  const menuTypes = source("src/features/menu/types/menu.ts");
+  const menuScreen = source("src/features/menu/components/menu-screen.tsx");
+  const details = source("src/features/menu/components/product-details-screen.tsx");
+  const cart = source("src/features/cart/components/cart-screen.tsx");
+  const service = source("src/features/menu/services/supabase-menu.service.ts");
+  assert.match(menuTypes, /"temporarily-unavailable"/);
+  assert.match(menuScreen, /غير متاح مؤقتًا/);
+  assert.match(details, /disabled=\{isSaving \|\| isUnavailable\}/);
+  assert.match(cart, /blockedProductIds\.size > 0/);
+  assert.match(cart, /forceRefresh: true/);
+  assert.match(service, /product\.availability === "available" \? "available" : "temporarily-unavailable"/);
+  assert.doesNotMatch(menuTypes, /sold-out/);
+});

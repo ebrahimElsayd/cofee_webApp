@@ -39,7 +39,7 @@ export type MenuProduct = {
   imageUrl: string;
   imageAlt: string;
   badge?: ProductBadge;
-  availability: "available" | "sold-out";
+  availability: "available" | "temporarily-unavailable";
   allowsNotes: boolean;
   customizationGroups: CustomizationGroup[];
   searchTerms: string[];
