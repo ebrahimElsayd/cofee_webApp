@@ -120,7 +120,7 @@ export function AnimatedOrderTrackingScreen({ tableId }: { tableId: number }) {
                 <div className={styles.saucer} />
               </div>
               <div><strong>{isSettled ? "تم دفع الحساب" : allCancelled ? "تم إلغاء الطلب" : allReady ? "طلبك جاهز للاستلام" : journeyStage === 2 ? "الباريستا يحضّر طلبك الآن" : "طلبك وصل للباريستا"}</strong><p>{isSettled ? "الجلسة مقفلة للطلبات الجديدة وبانتظار تأكيد المغادرة من الكاشير" : allCancelled ? "لن تُحتسب العناصر الملغاة في الحساب" : allReady ? "استلمه من الكاونتر أو انتظر النادل" : journeyStage === 2 ? "يتم تحضير مشروباتك بعناية" : "تم استلام الطلب وسيبدأ التحضير قريبًا"}</p></div>
-              <small>#{order.id}</small>
+              <small>#{order.orderNumber ?? "—"}</small>
             </section>
             <section className={styles.journey} aria-label="رحلة الطلب">
               <div className={styles.journeyLine}><i /></div>

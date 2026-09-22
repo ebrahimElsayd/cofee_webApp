@@ -187,6 +187,19 @@ export async function submitSupabaseTableOrder({
     p_idempotency_key: idempotencyKey,
   });
   if (submitError || typeof orderId !== "string") throw submitError ?? new Error("Order was not created");
+
+  // The RPC intentionally returns the opaque UUID for idempotent retries. Resolve
+  // the human-facing sequential number separately and never expose that UUID in
+  // customer UI. RLS scopes this lookup to the active table session.
+  const { data: orderNumberRow, error: orderNumberError } = await supabase
+    .from("orders")
+    .select("order_number")
+    .eq("id", orderId)
+    .maybeSingle();
+  const orderNumber = Number(orderNumberRow?.order_number);
+  if (orderNumberError || !Number.isSafeInteger(orderNumber) || orderNumber < 1) {
+    throw orderNumberError ?? new Error("Order number was not created");
+  }
   clearSubmitIdempotencyKey(session.sessionId);
   // The submitted order is now canonical in Supabase. Remove the draft
   // immediately so a second screen/tab cannot resubmit stale cart items.
@@ -194,6 +207,7 @@ export async function submitSupabaseTableOrder({
 
   const order: SubmittedTableOrder = {
     id: orderId,
+    orderNumber,
     tableId,
     submittedBy,
     guestCount: new Set(items.map((item) => item.recipientName)).size,

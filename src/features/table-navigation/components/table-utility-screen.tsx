@@ -26,7 +26,7 @@ export function OrderTrackingScreen({ tableId }: { tableId: number }) {
         <>
           <section className={styles.timerCard}>
             <div className={styles.progressRing}><strong>3:07</strong><span>دقائق متبقية</span></div>
-            <p>طلب رقم <b>#{order.id}</b></p>
+            <p>طلب رقم <b>#{order.orderNumber ?? "—"}</b></p>
           </section>
           <section className={styles.orderSummary}>
             <div><span>طلب الطاولة</span><b>{order.itemCount} منتجات</b></div>
