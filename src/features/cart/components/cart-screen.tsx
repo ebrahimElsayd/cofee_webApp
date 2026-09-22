@@ -34,6 +34,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const [blockedProductIds, setBlockedProductIds] = useState<Set<string>>(new Set());
   const [isAvailabilityChecking, setIsAvailabilityChecking] = useState(true);
   const [responsibleName, setResponsibleName] = useState("");
+  const [hasPreviousOrders, setHasPreviousOrders] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
 
   function reconcileAvailability(products: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>["products"], cartItems: DraftCartItem[]) {
@@ -47,6 +48,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
       const cart = await getSharedDraftCartState(tableId);
       setItems(cart.items);
       setResponsibleName(cart.responsibleName);
+      setHasPreviousOrders(cart.hasPreviousOrders);
       setCanSubmit(cart.canCurrentGuestSubmit);
       // Keep the persistent bottom-navigation badge aligned with the canonical
       // Supabase cart after every initial or realtime refresh.
@@ -205,8 +207,8 @@ export function CartScreen({ tableId }: { tableId: number }) {
                 <svg viewBox="0 0 24 24"><path d="m5 9 3.5 3L12 6l3.5 6L19 9l-1.5 8h-11L5 9Z" /></svg>
               </span>
               <div>
-                <strong>{tableHost} هو مسؤول الطلب</strong>
-                <p>مسؤول الطاولة فقط يقدر يرسل الطلب المجمّع للكاشير.</p>
+                <strong>{hasPreviousOrders ? "يمكن لأي ضيف إرسال طلب جديد" : `${tableHost} هو مسؤول الإرسال الأول`}</strong>
+                <p>{hasPreviousOrders ? "كل طلب جديد سيظهر مباشرة في المتابعة تحت نفس الجلسة." : "مسؤول الجلسة فقط يرسل الطلب الأول المجمّع للكاشير."}</p>
               </div>
             </section>
 
