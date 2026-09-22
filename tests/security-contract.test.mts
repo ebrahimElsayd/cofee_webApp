@@ -95,3 +95,11 @@ test("archived products are excluded from customer catalog and detail routes", (
   assert.match(menu, /\.eq\("cafe_id", cafeId\)\.eq\("id", productId\)\.neq\("availability", "hidden"\)/);
   assert.match(menu, /\.eq\("cafe_id", cafeId\)\.eq\("slug", slug\)\.neq\("availability", "hidden"\)/);
 });
+
+test("unused test categories are hidden without deleting history or active catalog groups", () => {
+  const migration = source("supabase/migrations/202609220003_hide_unused_test_categories.sql");
+  assert.match(migration, /set is_active = false/);
+  assert.match(migration, /not exists/);
+  assert.match(migration, /product\.availability <> 'hidden'/);
+  assert.doesNotMatch(migration, /delete from public\.menu_categories/);
+});
