@@ -78,3 +78,12 @@ test("manager product removal is a cafe-scoped archive that preserves order hist
   assert.match(migration, /product_availability/);
   assert.doesNotMatch(migration, /delete from public\.menu_products/);
 });
+
+test("archived products restore as temporarily unavailable within the active cafe", () => {
+  const migration = source("supabase/migrations/202609220002_restore_archived_product.sql");
+  assert.match(migration, /public\.is_staff_user\(\)/);
+  assert.match(migration, /v_cafe_id <> public\.current_staff_cafe_id\(\)/);
+  assert.match(migration, /and availability = 'hidden'/);
+  assert.match(migration, /set availability = 'unavailable'/);
+  assert.match(migration, /values \(p_product_id, false, now\(\)\)/);
+});
