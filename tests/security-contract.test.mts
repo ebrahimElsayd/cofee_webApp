@@ -87,3 +87,11 @@ test("archived products restore as temporarily unavailable within the active caf
   assert.match(migration, /set availability = 'unavailable'/);
   assert.match(migration, /values \(p_product_id, false, now\(\)\)/);
 });
+
+test("archived products are excluded from customer catalog and detail routes", () => {
+  const menu = source("src/features/menu/services/supabase-menu.service.ts");
+  const hiddenFilters = menu.match(/\.neq\("availability", "hidden"\)/g) ?? [];
+  assert.ok(hiddenFilters.length >= 3, "catalog, id lookup, and slug lookup must all exclude hidden products");
+  assert.match(menu, /\.eq\("cafe_id", cafeId\)\.eq\("id", productId\)\.neq\("availability", "hidden"\)/);
+  assert.match(menu, /\.eq\("cafe_id", cafeId\)\.eq\("slug", slug\)\.neq\("availability", "hidden"\)/);
+});
