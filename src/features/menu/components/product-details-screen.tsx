@@ -3,7 +3,7 @@
 import { ResilientImage } from "@/shared/presentation/components/resilient-image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   addToSharedDraftCart,
 } from "@/features/cart/services/local-draft-cart.service";
@@ -37,6 +37,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
   const [showNotes, setShowNotes] = useState(false);
   const [customizationMessage, setCustomizationMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
   const [isAddedSheetOpen, setIsAddedSheetOpen] = useState(false);
   const isUnavailable = product.availability === "temporarily-unavailable";
 
@@ -119,6 +120,11 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
   }
 
   async function saveProductToCart(cleanRecipientName: string) {
+    // A fast double tap can otherwise start two independent RPCs before the
+    // asynchronous React state update disables the UI. Keep this guard
+    // synchronous so one customer action creates exactly one cart line.
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     setIsSaving(true);
     const selectedOptions = getSelectedCustomizations(
       product.customizationGroups,
@@ -148,12 +154,10 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
         "kings-cafe:last-added-product",
         JSON.stringify({ productName: product.name, productNameAr: product.nameAr }),
       );
-      setIsSaving(false);
       setIsRecipientSheetOpen(false);
       setIsAddedSheetOpen(true);
     } catch (error) {
       console.error("[Cart] Failed to add product", error);
-      setIsSaving(false);
       const errorMessage = error instanceof Error
         ? error.message
         : typeof error === "object" && error !== null
@@ -178,6 +182,9 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
       } else {
         setCustomizationMessage("تعذّرت إضافة المنتج. حاول مرة أخرى.");
       }
+    } finally {
+      saveInFlightRef.current = false;
+      setIsSaving(false);
     }
   }
 
@@ -292,7 +299,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
                   <p>اختر اسمًا لإتمام الإضافة</p>
                   <div>{recipientNames.map((name) => (
                     <div key={name} className={styles.savedNameItem}>
-                      <button type="button" onClick={() => chooseRecipient(name)}>
+                      <button type="button" onClick={() => chooseRecipient(name)} disabled={isSaving}>
                         <span>{name.charAt(0).toUpperCase()}</span><b>{name}</b>
                       </button>
                       <button type="button" className={styles.removeNameButton} onClick={() => setRecipientNames((current) => current.filter((item) => item !== name))} aria-label={`إخفاء اسم ${name}`}>×</button>
@@ -314,7 +321,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
                     autoComplete="off"
                     autoFocus
                   />
-                  <button type="button" onClick={addRecipient}><span aria-hidden="true">+</span> تأكيد</button>
+                  <button type="button" onClick={addRecipient} disabled={isSaving}><span aria-hidden="true">+</span> تأكيد</button>
                 </div>
                 {recipientSheetError && <p role="alert">{recipientSheetError}</p>}
               </div>

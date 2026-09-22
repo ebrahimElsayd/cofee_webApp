@@ -135,3 +135,11 @@ test("temporarily unavailable products are consistently blocked across menu, det
   assert.match(service, /product\.availability === "available" \? "available" : "temporarily-unavailable"/);
   assert.doesNotMatch(menuTypes, /sold-out/);
 });
+
+test("product add is synchronously deduplicated against rapid double taps", () => {
+  const details = source("src/features/menu/components/product-details-screen.tsx");
+  assert.match(details, /saveInFlightRef/);
+  assert.match(details, /if \(saveInFlightRef\.current\) return/);
+  assert.match(details, /saveInFlightRef\.current = true/);
+  assert.match(details, /saveInFlightRef\.current = false/);
+});
