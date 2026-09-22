@@ -27,7 +27,7 @@ test("shared cart assigns one responsible guest and synchronizes real-time submi
   assert.match(migration, /supabase_realtime add table public\.cart_items/);
   assert.match(cart, /customer-cart-live:/);
   assert.match(cart, /table:\s*"carts"/);
-  assert.match(cart, /table:\s*"cart_items"/);
+  assert.match(cart, /filter: `session_id=eq\.\$\{session\.sessionId\}`/);
   assert.match(screen, /disabled=\{!canSubmit/);
   assert.match(screen, /subscribeToSharedDraftCart/);
 });

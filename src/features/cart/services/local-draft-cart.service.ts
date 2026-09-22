@@ -397,11 +397,13 @@ export async function subscribeToSharedDraftCart(
   onChange: () => void,
 ): Promise<() => void> {
   const session = await getVerifiedSession(tableId);
-  const { supabase, cartId } = await getOrCreateSupabaseCart(session.sessionId);
+  const supabase = createSupabaseBrowserClient();
+  // Subscribe to the session, not one cart id. A submitted cart is replaced
+  // by a new active cart for the next round; session-level cart updates keep
+  // every phone in sync across that lifecycle boundary without polling.
   let channel: RealtimeChannel | null = supabase
-    .channel(`customer-cart-live:${cartId}`)
-    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "carts", filter: `id=eq.${cartId}` }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "cart_items", filter: `cart_id=eq.${cartId}` }, onChange)
+    .channel(`customer-cart-live:session:${session.sessionId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "carts", filter: `session_id=eq.${session.sessionId}` }, onChange)
     .subscribe();
 
   return () => {
