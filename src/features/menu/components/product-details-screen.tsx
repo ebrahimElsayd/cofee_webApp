@@ -210,6 +210,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
         </section>
 
         <div className={styles.form}>
+          <fieldset className={styles.productFormFields} disabled={isUnavailable}>
           <p className={styles.description} lang="en">{product.description}</p>
 
           {product.customizationGroups.length > 0 ? (
@@ -265,6 +266,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
               <button type="button" onClick={() => setQuantity((value) => Math.min(10, value + 1))} disabled={quantity === 10} aria-label="زيادة الكمية">+</button>
             </div>
           </section>
+          </fieldset>
         </div>
 
         <footer className={styles.actionBar}>
