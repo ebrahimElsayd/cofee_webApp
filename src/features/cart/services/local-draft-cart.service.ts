@@ -20,6 +20,8 @@ export type SharedDraftCartState = {
   responsibleGuestId: string | null;
   responsibleName: string;
   isCurrentGuestResponsible: boolean;
+  hasPreviousOrders: boolean;
+  canCurrentGuestSubmit: boolean;
 };
 
 function getStorageKey(tableId: number) {
@@ -373,11 +375,20 @@ async function getSupabaseDraftCartState(tableId: number): Promise<SharedDraftCa
   const rows = (result.data ?? []) as unknown as SupabaseCartRow[];
   const items = rows.map((row) => mapSupabaseCartItem(row, tableId));
   const displayedResponsibleName = responsibleName ?? rows.find((row) => row.guest_id === responsibleGuestId)?.recipient_name ?? items[0]?.recipientName ?? "";
+  const previousOrders = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("session_id", sessionId);
+  if (previousOrders.error) throw previousOrders.error;
+  const hasPreviousOrders = (previousOrders.count ?? 0) > 0;
+  const isCurrentGuestResponsible = responsibleGuestId !== null && responsibleGuestId === session.guestId;
   return {
     items,
     responsibleGuestId,
     responsibleName: displayedResponsibleName,
-    isCurrentGuestResponsible: responsibleGuestId !== null && responsibleGuestId === session.guestId,
+    isCurrentGuestResponsible,
+    hasPreviousOrders,
+    canCurrentGuestSubmit: hasPreviousOrders || isCurrentGuestResponsible,
   };
 }
 

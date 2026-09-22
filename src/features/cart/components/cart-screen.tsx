@@ -34,7 +34,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const [blockedProductIds, setBlockedProductIds] = useState<Set<string>>(new Set());
   const [isAvailabilityChecking, setIsAvailabilityChecking] = useState(true);
   const [responsibleName, setResponsibleName] = useState("");
-  const [isResponsible, setIsResponsible] = useState(false);
+  const [canSubmit, setCanSubmit] = useState(false);
 
   function reconcileAvailability(products: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>["products"], cartItems: DraftCartItem[]) {
     const availableIds = new Set(products.filter((product) => product.availability === "available").map((product) => product.id));
@@ -47,7 +47,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
       const cart = await getSharedDraftCartState(tableId);
       setItems(cart.items);
       setResponsibleName(cart.responsibleName);
-      setIsResponsible(cart.isCurrentGuestResponsible);
+      setCanSubmit(cart.canCurrentGuestSubmit);
       // Keep the persistent bottom-navigation badge aligned with the canonical
       // Supabase cart after every initial or realtime refresh.
       window.dispatchEvent(new CustomEvent(getCartUpdatedEventName()));
@@ -100,7 +100,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
   }
 
   async function sendCombinedOrder() {
-    if (!tableHost || !isResponsible || items.length === 0 || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
+    if (!tableHost || !canSubmit || items.length === 0 || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
 
     setIsSubmitting(true);
     setSubmitError("");
@@ -212,9 +212,9 @@ export function CartScreen({ tableId }: { tableId: number }) {
 
             <footer className={styles.actions}>
               {blockedProductIds.size > 0 && <div className={styles.availabilityWarning} role="alert"><strong>تعذّر إرسال الطلب حاليًا</strong><span>منتج أو أكثر أصبح غير متاح مؤقتًا. احذف المنتجات المحددة ثم أرسل الطلب.</span></div>}
-              {!isResponsible && <p className={styles.submitError}>مسؤول الطلب فقط يمكنه إرسال الطلب المجمّع. ستتحدث السلة تلقائيًا بعد الإرسال.</p>}
+              {!canSubmit && <p className={styles.submitError}>الإرسال الأول متاح لمسؤول الجلسة فقط. بعد أول طلب يمكن لأي ضيف إرسال طلباته الجديدة.</p>}
               {submitError && <p role="alert" className={styles.submitError}>{submitError}</p>}
-              <button type="button" onClick={sendCombinedOrder} disabled={!isResponsible || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
+              <button type="button" onClick={sendCombinedOrder} disabled={!canSubmit || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z" /><path d="m10.2 13.8 4-4" /></svg>
                 <span><strong lang="en">Send Combined Table Order</strong><small>إرسال طلب الطاولة مرة واحدة للكاشير</small></span>
                 <b>{itemCount}<small>items</small></b>

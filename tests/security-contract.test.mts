@@ -28,8 +28,19 @@ test("shared cart assigns one responsible guest and synchronizes real-time submi
   assert.match(cart, /customer-cart-live:/);
   assert.match(cart, /table:\s*"carts"/);
   assert.match(cart, /table:\s*"cart_items"/);
-  assert.match(screen, /disabled=\{!isResponsible/);
+  assert.match(screen, /disabled=\{!canSubmit/);
   assert.match(screen, /subscribeToSharedDraftCart/);
+});
+
+test("only the first submission is owner-controlled", () => {
+  const migration = source("supabase/migrations/202609220004_allow_followup_guest_submissions.sql");
+  const cart = source("src/features/cart/services/local-draft-cart.service.ts");
+  const screen = source("src/features/cart/components/cart-screen.tsx");
+  assert.match(migration, /v_has_previous_orders/);
+  assert.match(migration, /not v_has_previous_orders/);
+  assert.match(migration, /submit the first order/);
+  assert.match(cart, /canCurrentGuestSubmit/);
+  assert.match(screen, /بعد أول طلب يمكن لأي ضيف/);
 });
 
 test("customer order tracking is scoped to the active session", () => {
