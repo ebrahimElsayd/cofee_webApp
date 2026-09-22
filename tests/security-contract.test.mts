@@ -32,8 +32,9 @@ test("menu uses persistent versioned cache and merges concurrent loads", () => {
 test("all menu catalog access is scoped to the current table session", () => {
   const route = source("src/features/menu/components/product-details-route.tsx");
   const menu = source("src/features/menu/services/supabase-menu.service.ts");
-  assert.match(route, /getSupabaseMenuCatalog\(\{ tableId \}\)/);
-  assert.match(route, /getSupabaseMenuCatalog\(\{ forceRefresh: true, tableId \}\)/);
+  assert.match(route, /getSupabaseMenuProduct\(\{ tableId, productSlug \}\)/);
+  assert.match(menu, /getSupabaseMenuProduct\(options: \{ tableId: number; productSlug: string \}\)/);
+  assert.match(menu, /\.eq\("cafe_id", cafeId\)\.eq\("slug", slug\)/);
   assert.match(menu, /getSupabaseMenuCatalog\(options: \{ forceRefresh\?: boolean; tableId: number \}\)/);
 });
 
@@ -67,4 +68,13 @@ test("bill requests are deduplicated in the client and rejected after settlement
   assert.match(migration, /v_status IN \('open', 'ordering'\)/);
   assert.match(migration, /session_has_paid_payment/);
   assert.match(migration, /service_requests_one_open_bill_per_session/);
+});
+
+test("manager product removal is a cafe-scoped archive that preserves order history", () => {
+  const migration = source("supabase/migrations/202609220001_archive_product.sql");
+  assert.match(migration, /public\.is_staff_user\(\)/);
+  assert.match(migration, /v_cafe_id <> public\.current_staff_cafe_id\(\)/);
+  assert.match(migration, /set availability = 'hidden'/);
+  assert.match(migration, /product_availability/);
+  assert.doesNotMatch(migration, /delete from public\.menu_products/);
 });

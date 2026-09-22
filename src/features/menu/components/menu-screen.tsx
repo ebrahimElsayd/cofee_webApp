@@ -69,7 +69,7 @@ export function MenuScreen({ tableId }: MenuScreenProps) {
       .then(() => refreshCatalog())
       .catch((error) => {
         if (error instanceof TableSessionClosedError) {
-          router.replace(`/table/${tableId}?session=closed`);
+          router.replace(`/?session=closed&table=${tableId}`);
           return;
         }
         if (active) { setCatalogError("تعذر تحميل قائمة المنتجات من الخادم."); setIsCatalogLoading(false); }
@@ -251,7 +251,7 @@ function ProductCard({
           sizes="(max-width: 520px) 46vw, 220px"
           priority={priority} />
         {product.badge && <span className={styles.productBadge}>{product.badge}</span>}
-        {isSoldOut && <span className={styles.soldOut}>نفد مؤقتًا</span>}
+        {isSoldOut && <span className={styles.soldOut}>غير متاح مؤقتًا</span>}
       </div>
 
       <div className={styles.productBody}>

@@ -163,6 +163,20 @@ export async function getSupabaseMenuCatalog(options: { forceRefresh?: boolean; 
   }
 }
 
+/**
+ * Load one product without fetching the full catalog. The table session is
+ * still resolved first so a stale URL cannot be used to read another cafe's
+ * menu. This is intentionally separate from the catalog cache: product
+ * details are a hot path and should not pay for all products/modifiers.
+ */
+export async function getSupabaseMenuProduct(options: { tableId: number; productSlug: string }): Promise<MenuProduct | null> {
+  const cafeId = await resolveActiveCafeId(options.tableId);
+  if (!cafeId) throw new Error("No active cafe context. Open the table QR code again.");
+  let slug = options.productSlug;
+  try { slug = decodeURIComponent(slug); } catch { /* keep the route segment */ }
+  return withTimeout(loadMenuProductBySlug(cafeId, slug.trim()), CATALOG_REQUEST_TIMEOUT_MS);
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error("Menu catalog request timed out")), timeoutMs);
@@ -203,6 +217,17 @@ async function loadMenuProduct(cafeId: string, productId: string): Promise<MenuP
   const result = await supabase.from("menu_products")
     .select("id,slug,name,name_ar,description,image_url,base_price,availability,allows_notes,category_id,menu_categories(code),product_modifier_groups(sort_order,modifier_groups(id,code,name,name_ar,selection_type,is_required,modifier_options(id,name,name_ar,price_delta,is_available,sort_order)))")
     .eq("cafe_id", cafeId).eq("id", productId).neq("availability", "hidden").maybeSingle();
+  if (result.error) throw result.error;
+  if (!result.data) return null;
+  const row = result.data as unknown as CatalogProduct;
+  return mapProduct(row, row.menu_categories?.code);
+}
+
+async function loadMenuProductBySlug(cafeId: string, slug: string): Promise<MenuProduct | null> {
+  const supabase = createSupabaseBrowserClient();
+  const result = await supabase.from("menu_products")
+    .select("id,slug,name,name_ar,description,image_url,base_price,availability,allows_notes,category_id,menu_categories(code),product_modifier_groups(sort_order,modifier_groups(id,code,name,name_ar,selection_type,is_required,modifier_options(id,name,name_ar,price_delta,is_available,sort_order)))")
+    .eq("cafe_id", cafeId).eq("slug", slug).neq("availability", "hidden").maybeSingle();
   if (result.error) throw result.error;
   if (!result.data) return null;
   const row = result.data as unknown as CatalogProduct;

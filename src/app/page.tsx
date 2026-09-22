@@ -1,6 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 export default function HomePage() {
+  const [sessionClosed, setSessionClosed] = useState(false);
+  const [closedTable, setClosedTable] = useState<string | null>(null);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      const params = new URLSearchParams(window.location.search);
+      setSessionClosed(params.get("session") === "closed");
+      setClosedTable(params.get("table"));
+    });
+  }, []);
   return (
     <main className="relative min-h-svh overflow-hidden bg-[#070806] px-4 py-6 text-[#f7f2e8] sm:px-6 sm:py-8">
       <div className="pointer-events-none absolute -left-32 -top-32 size-80 rounded-full bg-[#e0a020]/[.08] blur-3xl" />
@@ -17,12 +29,15 @@ export default function HomePage() {
 
         <div className="rounded-[2rem] border border-white/10 bg-white/[.035] p-5 text-center shadow-[0_24px_80px_rgba(0,0,0,.35)] backdrop-blur-xl sm:p-7">
           <div className="mx-auto grid size-24 place-items-center rounded-3xl border border-[#e0a020]/35 bg-[#e0a020]/[.08] text-5xl shadow-[0_0_45px_rgba(224,160,32,.16)]">▦</div>
-          <p className="mt-7 text-[10px] font-medium uppercase tracking-[.3em] text-[#e0a020]">TABLE ACCESS</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">ادخل إلى قائمة الكافيه</h1>
-          <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-white/55">استخدم كاميرا هاتفك لمسح رمز QR الموجود على طاولتك. سيتم فتح القائمة الخاصة بالطاولة تلقائيًا.</p>
+          <p className="mt-7 text-[10px] font-medium uppercase tracking-[.3em] text-[#e0a020]">{sessionClosed ? "SESSION ENDED" : "TABLE ACCESS"}</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">{sessionClosed ? "انتهت جلسة الطاولة" : "ادخل إلى قائمة الكافيه"}</h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-white/55">{sessionClosed ? `تم إغلاق الجلسة${closedTable ? ` للطاولة ${closedTable}` : ""}. امسح رمز QR الموجود على الطاولة لبدء جلسة جديدة.` : "استخدم كاميرا هاتفك لمسح رمز QR الموجود على طاولتك. سيتم فتح القائمة الخاصة بالطاولة تلقائيًا."}</p>
 
           <div className="mt-7 space-y-3 text-right">
-            {[["01", "افتح كاميرا الهاتف", "استخدم الكاميرا الأصلية في هاتفك"], ["02", "وجّهها إلى QR الطاولة", "ستجد الرمز مطبوعًا على الطاولة"], ["03", "ابدأ الطلب", "ستفتح قائمة الكافيه تلقائيًا"]].map(([number, title, description]) => (
+            {(sessionClosed
+              ? [["01", "افتح كاميرا الهاتف", "استخدم الكاميرا الأصلية في هاتفك"], ["02", "امسح QR الطاولة", "استخدم الرمز المطبوع على الطاولة"], ["03", "ابدأ جلسة جديدة", "ستفتح القائمة بكارت فارغ"]]
+              : [["01", "افتح كاميرا الهاتف", "استخدم الكاميرا الأصلية في هاتفك"], ["02", "وجّهها إلى QR الطاولة", "ستجد الرمز مطبوعًا على الطاولة"], ["03", "ابدأ الطلب", "ستفتح قائمة الكافيه تلقائيًا"]]
+            ).map(([number, title, description]) => (
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/10 p-3.5" key={number}>
                 <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#e0a020]/35 bg-[#e0a020]/[.08] text-xs font-semibold text-[#e0a020]">{number}</span>
                 <div><strong className="block text-sm">{title}</strong><small className="mt-1 block text-xs text-white/40">{description}</small></div>
