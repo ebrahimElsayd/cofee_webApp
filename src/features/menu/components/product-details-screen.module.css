@@ -96,6 +96,8 @@
 .productTitle > strong small { display: block; margin-top: 6px; color: #aaa59b; font-size: 10px; text-align: right; }
 
 .form { padding: 6px 18px 30px; animation: form-in 500ms 150ms ease-out both; }
+.productFormFields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.productFormFields:disabled { opacity: .58; }
 
 .description {
   margin: 0 0 4px;
