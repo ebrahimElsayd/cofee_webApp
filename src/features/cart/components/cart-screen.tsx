@@ -26,7 +26,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const [items, setItems] = useState<DraftCartItem[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [splitBill, setSplitBill] = useState(false);
-  const [submittedOrderId, setSubmittedOrderId] = useState("");
+  const [submittedOrderNumber, setSubmittedOrderNumber] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [blockedProductIds, setBlockedProductIds] = useState<Set<string>>(new Set());
@@ -75,7 +75,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
   }
 
   async function sendCombinedOrder() {
-    if (!tableHost || items.length === 0 || submittedOrderId || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
+    if (!tableHost || items.length === 0 || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
 
     setIsSubmitting(true);
     setSubmitError("");
@@ -92,7 +92,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
       // that makes the customer see success while the cashier receives nothing.
       const order = await submitSupabaseTableOrder({ tableId, items, submittedBy: tableHost });
       setItems([]);
-      setSubmittedOrderId(order.id);
+      setSubmittedOrderNumber(order.orderNumber ?? null);
       window.setTimeout(() => router.push(`/table/${tableId}/order`), 900);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "تعذر إرسال الطلب للكاشير");
@@ -121,7 +121,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
 
         {!isReady ? (
           <div className={styles.loading} aria-label="جاري تحميل السلة" />
-        ) : items.length === 0 && !submittedOrderId ? (
+        ) : items.length === 0 && submittedOrderNumber === null ? (
           <EmptyCart tableId={tableId} />
         ) : (
           <>
@@ -188,7 +188,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
             <footer className={styles.actions}>
               {blockedProductIds.size > 0 && <div className={styles.availabilityWarning} role="alert"><strong>تعذّر إرسال الطلب حاليًا</strong><span>منتج أو أكثر أصبح غير متاح مؤقتًا. احذف المنتجات المحددة ثم أرسل الطلب.</span></div>}
               {submitError && <p role="alert" className={styles.submitError}>{submitError}</p>}
-              <button type="button" onClick={sendCombinedOrder} disabled={Boolean(submittedOrderId) || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
+              <button type="button" onClick={sendCombinedOrder} disabled={submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z" /><path d="m10.2 13.8 4-4" /></svg>
                 <span><strong lang="en">Send Combined Table Order</strong><small>إرسال طلب الطاولة مرة واحدة للكاشير</small></span>
                 <b>{itemCount}<small>items</small></b>
@@ -204,13 +204,13 @@ export function CartScreen({ tableId }: { tableId: number }) {
         )}
       </div>
 
-      {submittedOrderId && (
+      {submittedOrderNumber !== null && (
         <section className={styles.successBackdrop} role="dialog" aria-modal="true" aria-labelledby="order-success-title">
           <div className={styles.successCard}>
             <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" /></svg></span>
             <p>تم إرسال الطلب للكاشير</p>
             <h2 id="order-success-title" lang="en">Order Sent Successfully</h2>
-            <small lang="en">#{submittedOrderId}</small>
+            <small lang="en">#{submittedOrderNumber || "—"}</small>
             <Link href={`/table/${tableId}/order`}>Track Order <i>متابعة الطلب</i></Link>
           </div>
         </section>

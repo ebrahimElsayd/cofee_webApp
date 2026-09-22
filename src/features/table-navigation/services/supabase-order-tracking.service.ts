@@ -229,6 +229,7 @@ async function loadSupabaseTableOrder(tableId: number): Promise<SubmittedTableOr
   const total = mappedItems.reduce((sum, item) => item.status === "cancelled" ? sum : sum + item.totalPrice, 0);
   return {
     id: orders[orders.length - 1].id,
+    orderNumber: orders[orders.length - 1].order_number,
     tableId,
     submittedBy: mappedItems[0]?.recipientName ?? "Guest",
     guestCount: new Set(mappedItems.map((item) => item.recipientName)).size,
