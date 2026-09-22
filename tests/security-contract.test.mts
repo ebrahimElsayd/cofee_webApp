@@ -15,6 +15,23 @@ test("order submission sends identifiers only and retains idempotency", () => {
   assert.doesNotMatch(rpcPayload, /unit_price|p_total/);
 });
 
+test("shared cart assigns one responsible guest and synchronizes real-time submission", () => {
+  const cart = source("src/features/cart/services/local-draft-cart.service.ts");
+  const screen = source("src/features/cart/components/cart-screen.tsx");
+  const migration = source("supabase/migrations/202609220002_cart_responsibility_and_realtime.sql");
+
+  assert.match(migration, /responsible_guest_id\s*=\s*coalesce\(responsible_guest_id, v_guest_id\)/);
+  assert.match(migration, /Only the responsible guest can submit this cart/);
+  assert.match(migration, /for update/);
+  assert.match(migration, /supabase_realtime add table public\.carts/);
+  assert.match(migration, /supabase_realtime add table public\.cart_items/);
+  assert.match(cart, /customer-cart-live:/);
+  assert.match(cart, /table:\s*"carts"/);
+  assert.match(cart, /table:\s*"cart_items"/);
+  assert.match(screen, /disabled=\{!isResponsible/);
+  assert.match(screen, /subscribeToSharedDraftCart/);
+});
+
 test("customer order tracking is scoped to the active session", () => {
   const tracking = source("src/features/table-navigation/services/supabase-order-tracking.service.ts");
   assert.match(tracking, /table:\s*"orders",\s*filter:\s*`session_id=eq\.\$\{pointer\.sessionId\}`/);

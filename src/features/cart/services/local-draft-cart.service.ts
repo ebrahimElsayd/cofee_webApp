@@ -6,14 +6,21 @@ import type {
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { generateSafeUUID } from "@/shared/utils/uuid";
 import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 const ACTIVE_SESSION_KEY = "kings-cafe:active-table-session";
 const ORDERABLE_SESSION_STATUSES = new Set(["active", "open", "ordering"]);
 const CART_REQUEST_TIMEOUT_MS = 12_000;
 
-type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string };
-type VerifiedSession = ActiveSessionPointer & { tableUuid: string };
+type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string; guestId?: string };
+type VerifiedSession = ActiveSessionPointer & { guestId: string; tableUuid: string };
+export type SharedDraftCartState = {
+  items: DraftCartItem[];
+  responsibleGuestId: string | null;
+  responsibleName: string;
+  isCurrentGuestResponsible: boolean;
+};
 
 function getStorageKey(tableId: number) {
   return `kings-cafe:table:${tableId}:draft-cart:v2`;
@@ -226,7 +233,11 @@ export function getCartUpdatedEventName() {
 }
 
 export async function getSharedDraftCart(tableId: number): Promise<DraftCartItem[]> {
-  return getSupabaseDraftCart(tableId);
+  return (await getSharedDraftCartState(tableId)).items;
+}
+
+export async function getSharedDraftCartState(tableId: number): Promise<SharedDraftCartState> {
+  return getSupabaseDraftCartState(tableId);
 }
 
 export async function addToSharedDraftCart(item: NewDraftCartItem): Promise<DraftCartItem> {
@@ -312,16 +323,16 @@ function clearSubmitIdempotencyKey(sessionId: string) {
 
 async function getOrCreateSupabaseCart(sessionId: string) {
   const supabase = createSupabaseBrowserClient();
-  const existing = await withCartTimeout(supabase.from("carts").select("id").eq("session_id", sessionId).eq("status", "active").maybeSingle());
+  const existing = await withCartTimeout(supabase.from("carts").select("id,responsible_guest_id,responsible_name").eq("session_id", sessionId).eq("status", "active").maybeSingle());
   if (existing.error) throw existing.error;
-  if (existing.data) return { supabase, cartId: existing.data.id };
+  if (existing.data) return { supabase, cartId: existing.data.id, responsibleGuestId: existing.data.responsible_guest_id as string | null, responsibleName: existing.data.responsible_name as string | null };
 
-  const created = await withCartTimeout(supabase.from("carts").insert({ session_id: sessionId }).select("id").single());
-  if (!created.error && created.data) return { supabase, cartId: created.data.id };
+  const created = await withCartTimeout(supabase.from("carts").insert({ session_id: sessionId }).select("id,responsible_guest_id,responsible_name").single());
+  if (!created.error && created.data) return { supabase, cartId: created.data.id, responsibleGuestId: created.data.responsible_guest_id as string | null, responsibleName: created.data.responsible_name as string | null };
 
-  const retry = await withCartTimeout(supabase.from("carts").select("id").eq("session_id", sessionId).eq("status", "active").single());
+  const retry = await withCartTimeout(supabase.from("carts").select("id,responsible_guest_id,responsible_name").eq("session_id", sessionId).eq("status", "active").single());
   if (retry.error) throw created.error ?? retry.error;
-  return { supabase, cartId: retry.data.id };
+  return { supabase, cartId: retry.data.id, responsibleGuestId: retry.data.responsible_guest_id as string | null, responsibleName: retry.data.responsible_name as string | null };
 }
 
 function mapSupabaseCartItem(row: SupabaseCartRow, tableId: number): DraftCartItem {
@@ -348,17 +359,46 @@ function mapSupabaseCartItem(row: SupabaseCartRow, tableId: number): DraftCartIt
   };
 }
 
-async function getSupabaseDraftCart(tableId: number): Promise<DraftCartItem[]> {
-  const sessionId = await getVerifiedSessionId(tableId);
+async function getSupabaseDraftCartState(tableId: number): Promise<SharedDraftCartState> {
+  const session = await getVerifiedSession(tableId);
+  const sessionId = session.sessionId;
   if (!sessionId) throw new Error("No active Supabase table session");
-  const { supabase, cartId } = await getOrCreateSupabaseCart(sessionId);
+  const { supabase, cartId, responsibleGuestId, responsibleName } = await getOrCreateSupabaseCart(sessionId);
   const result = await supabase
     .from("cart_items")
     .select("id,guest_id,product_id,recipient_name,quantity,unit_price,selected_options,notes,created_at,menu_products(slug,name,name_ar,image_url,base_price)")
     .eq("cart_id", cartId)
     .order("created_at", { ascending: true });
   if (result.error) throw result.error;
-  return ((result.data ?? []) as unknown as SupabaseCartRow[]).map((row) => mapSupabaseCartItem(row, tableId));
+  const rows = (result.data ?? []) as unknown as SupabaseCartRow[];
+  const items = rows.map((row) => mapSupabaseCartItem(row, tableId));
+  const displayedResponsibleName = responsibleName ?? rows.find((row) => row.guest_id === responsibleGuestId)?.recipient_name ?? items[0]?.recipientName ?? "";
+  return {
+    items,
+    responsibleGuestId,
+    responsibleName: displayedResponsibleName,
+    isCurrentGuestResponsible: responsibleGuestId !== null && responsibleGuestId === session.guestId,
+  };
+}
+
+export async function subscribeToSharedDraftCart(
+  tableId: number,
+  onChange: () => void,
+): Promise<() => void> {
+  const session = await getVerifiedSession(tableId);
+  const { supabase, cartId } = await getOrCreateSupabaseCart(session.sessionId);
+  let channel: RealtimeChannel | null = supabase
+    .channel(`customer-cart-live:${cartId}`)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "carts", filter: `id=eq.${cartId}` }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "cart_items", filter: `cart_id=eq.${cartId}` }, onChange)
+    .subscribe();
+
+  return () => {
+    if (!channel) return;
+    const activeChannel = channel;
+    channel = null;
+    void supabase.removeChannel(activeChannel);
+  };
 }
 
 async function addSupabaseDraftCartItem(item: NewDraftCartItem): Promise<DraftCartItem> {
@@ -391,14 +431,10 @@ async function addSupabaseDraftCartItem(item: NewDraftCartItem): Promise<DraftCa
   return mapSupabaseCartItem(inserted.data as unknown as SupabaseCartRow, item.tableId);
 }
 
-async function getVerifiedSessionId(tableId: number): Promise<string> {
-  return (await getVerifiedSession(tableId)).sessionId;
-}
-
 async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
   const pointer = getActiveSessionPointer(tableId);
   const requestedCafeId = getRequestedCafeId();
-  if (!pointer || pointer.tableId !== tableId || (requestedCafeId && pointer.cafeId !== requestedCafeId)) {
+  if (!pointer || !pointer.guestId || pointer.tableId !== tableId || (requestedCafeId && pointer.cafeId !== requestedCafeId)) {
     throw new Error("TABLE_SESSION_CONTEXT_MISSING: Scan the table QR code again.");
   }
 
@@ -430,7 +466,7 @@ async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
   if (!ORDERABLE_SESSION_STATUSES.has(row.status)) {
     throw new Error("TABLE_SESSION_NOT_ORDERABLE");
   }
-  return { ...pointer, tableUuid: row.table_id };
+  return { ...pointer, guestId: pointer.guestId, tableUuid: row.table_id };
 }
 
 function withCartTimeout<T>(request: PromiseLike<T>): Promise<T> {

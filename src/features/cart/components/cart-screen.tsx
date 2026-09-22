@@ -3,10 +3,11 @@
 import { ResilientImage } from "@/shared/presentation/components/resilient-image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  getSharedDraftCart,
+  getSharedDraftCartState,
   removeFromSharedDraftCart,
+  subscribeToSharedDraftCart,
   submitSupabaseTableOrder,
 } from "../services/local-draft-cart.service";
 import type { DraftCartItem } from "../types/draft-cart";
@@ -31,6 +32,8 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const [submitError, setSubmitError] = useState("");
   const [blockedProductIds, setBlockedProductIds] = useState<Set<string>>(new Set());
   const [isAvailabilityChecking, setIsAvailabilityChecking] = useState(true);
+  const [responsibleName, setResponsibleName] = useState("");
+  const [isResponsible, setIsResponsible] = useState(false);
 
   function reconcileAvailability(products: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>["products"], cartItems: DraftCartItem[]) {
     const availableIds = new Set(products.filter((product) => product.availability === "available").map((product) => product.id));
@@ -38,22 +41,40 @@ export function CartScreen({ tableId }: { tableId: number }) {
     setIsAvailabilityChecking(false);
   }
 
-  useEffect(() => {
-    function refreshCart() {
-      void getSharedDraftCart(tableId).then(async (cartItems) => {
-        setItems(cartItems);
-        const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
-        reconcileAvailability(catalog.products, cartItems);
-      }).catch(() => setItems([]));
+  const refreshCart = useCallback(async () => {
+    try {
+      const cart = await getSharedDraftCartState(tableId);
+      setItems(cart.items);
+      setResponsibleName(cart.responsibleName);
+      setIsResponsible(cart.isCurrentGuestResponsible);
+      const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
+      reconcileAvailability(catalog.products, cart.items);
+    } catch {
+      setItems([]);
+    } finally {
       setIsReady(true);
     }
+  }, [tableId]);
 
-    const timer = window.setTimeout(refreshCart, 0);
+  useEffect(() => {
+    let unsubscribe = () => {};
+    let disposed = false;
+    const timer = window.setTimeout(() => {
+      void refreshCart();
+      void subscribeToSharedDraftCart(tableId, () => { void refreshCart(); })
+        .then((cleanup) => {
+          if (disposed) cleanup();
+          else unsubscribe = cleanup;
+        })
+        .catch(() => {});
+    }, 0);
 
     return () => {
+      disposed = true;
       window.clearTimeout(timer);
+      unsubscribe();
     };
-  }, [tableId]);
+  }, [refreshCart, tableId]);
 
   useEffect(() => subscribeToMenuCatalog((catalog) => reconcileAvailability(catalog.products, items), tableId), [items, tableId]);
 
@@ -63,19 +84,19 @@ export function CartScreen({ tableId }: { tableId: number }) {
     [items],
   );
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const tableHost = recipientOrders[0]?.recipientName ?? "";
+  const tableHost = responsibleName || recipientOrders[0]?.recipientName || "";
 
   async function removeItem(itemId: string) {
     try {
       await removeFromSharedDraftCart(tableId, itemId);
-      setItems(await getSharedDraftCart(tableId));
+      await refreshCart();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "تعذر حذف المنتج");
     }
   }
 
   async function sendCombinedOrder() {
-    if (!tableHost || items.length === 0 || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
+    if (!tableHost || !isResponsible || items.length === 0 || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0) return;
 
     setIsSubmitting(true);
     setSubmitError("");
@@ -159,11 +180,11 @@ export function CartScreen({ tableId }: { tableId: number }) {
             )}
 
             <section className={styles.orderGroups} aria-label="طلبات الأشخاص على الطاولة">
-              {recipientOrders.map((order, index) => (
+              {recipientOrders.map((order) => (
                 <RecipientOrderCard
                   key={order.recipientName}
                   order={order}
-                  isHost={index === 0}
+                  isHost={order.recipientName === tableHost}
                   onRemoveItem={removeItem}
                   blockedProductIds={blockedProductIds}
                 />
@@ -187,8 +208,9 @@ export function CartScreen({ tableId }: { tableId: number }) {
 
             <footer className={styles.actions}>
               {blockedProductIds.size > 0 && <div className={styles.availabilityWarning} role="alert"><strong>تعذّر إرسال الطلب حاليًا</strong><span>منتج أو أكثر أصبح غير متاح مؤقتًا. احذف المنتجات المحددة ثم أرسل الطلب.</span></div>}
+              {!isResponsible && <p className={styles.submitError}>مسؤول الطلب فقط يمكنه إرسال الطلب المجمّع. ستتحدث السلة تلقائيًا بعد الإرسال.</p>}
               {submitError && <p role="alert" className={styles.submitError}>{submitError}</p>}
-              <button type="button" onClick={sendCombinedOrder} disabled={submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
+              <button type="button" onClick={sendCombinedOrder} disabled={!isResponsible || submittedOrderNumber !== null || isSubmitting || isAvailabilityChecking || blockedProductIds.size > 0}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z" /><path d="m10.2 13.8 4-4" /></svg>
                 <span><strong lang="en">Send Combined Table Order</strong><small>إرسال طلب الطاولة مرة واحدة للكاشير</small></span>
                 <b>{itemCount}<small>items</small></b>
