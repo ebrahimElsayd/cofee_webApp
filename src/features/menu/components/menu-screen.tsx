@@ -251,7 +251,7 @@ function ProductCard({
           sizes="(max-width: 520px) 46vw, 220px"
           priority={priority} />
         {product.badge && <span className={styles.productBadge}>{product.badge}</span>}
-        {isSoldOut && <span className={styles.soldOut}>نفد مؤقتًا</span>}
+        {isSoldOut && <span className={styles.soldOut}>غير متاح مؤقتًا</span>}
       </div>
 
       <div className={styles.productBody}>
