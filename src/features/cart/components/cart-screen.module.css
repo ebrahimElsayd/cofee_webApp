@@ -137,6 +137,9 @@
 .productCopy { min-width: 0; }
 .productCopy h3 { overflow: hidden; margin: 0; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .productCopy p { overflow: hidden; margin: 4px 0 0; color: #868178; direction: rtl; font-size: 9px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.productCopy em { display: block; margin-top: 4px; color: #f0a28f; direction: rtl; font-size: 9px; font-style: normal; font-weight: 700; text-align: left; }
+.unavailableItem { background: rgb(127 29 29 / 10%); opacity: .78; }
+.unavailableItem .productImage { filter: grayscale(.65); }
 .quantity { padding: 3px 6px; border-radius: 7px; color: #98938a; background: #292925; font-size: 9px; font-weight: 700; }
 .itemPrice { min-width: 27px; color: #e0a020; font-size: 12px; text-align: right; }
 .orderItem > button { display: grid; width: 20px; height: 20px; place-items: center; border: 0; border-radius: 50%; color: #766f67; background: transparent; cursor: pointer; font-size: 16px; }
@@ -153,6 +156,8 @@
 
 .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 11px; }
 .submitError { margin: 0; padding: 10px 12px; border: 1px solid rgb(239 68 68 / 45%); border-radius: 10px; color: #fecaca; background: rgb(127 29 29 / 22%); font-size: 12px; text-align: center; }
+.availabilityWarning { display: flex; flex-direction: column; gap: 4px; padding: 12px 13px; border: 1px solid rgb(239 132 104 / 45%); border-radius: 13px; color: #ffd7cd; background: rgb(127 29 29 / 20%); direction: rtl; text-align: right; }
+.availabilityWarning strong { font-size: 12px; }.availabilityWarning span { color: #dcb8af; font-size: 10px; line-height: 1.55; }
 .actions > button { display: grid; min-height: 67px; grid-template-columns: 24px 1fr auto; align-items: center; gap: 10px; padding: 9px 13px; border: 0; border-radius: 17px; color: #1a1105; background: linear-gradient(120deg, #eca71f, #c77b0d); box-shadow: 0 13px 29px rgb(199 123 13 / 18%); cursor: pointer; direction: ltr; transition: transform 120ms ease, box-shadow 120ms ease; }
 .actions > button:active:not(:disabled) { box-shadow: 0 7px 18px rgb(199 123 13 / 14%); transform: scale(.985); }
 .actions > button:disabled { cursor: default; opacity: .65; }

@@ -241,7 +241,7 @@ function ProductCard({
   tableId: number;
   priority: boolean;
 }) {
-  const isSoldOut = product.availability === "sold-out";
+  const isUnavailable = product.availability === "temporarily-unavailable";
   const content = (
     <>
       <div className={styles.productImage}>
@@ -251,7 +251,7 @@ function ProductCard({
           sizes="(max-width: 520px) 46vw, 220px"
           priority={priority} />
         {product.badge && <span className={styles.productBadge}>{product.badge}</span>}
-        {isSoldOut && <span className={styles.soldOut}>غير متاح مؤقتًا</span>}
+        {isUnavailable && <span className={styles.soldOut}>غير متاح مؤقتًا</span>}
       </div>
 
       <div className={styles.productBody}>
@@ -260,15 +260,15 @@ function ProductCard({
         <div className={styles.productFooter}>
           <strong>{product.price}<small lang="en"> EGP</small></strong>
           <span className={styles.detailsButton} aria-hidden="true">
-            {isSoldOut ? "—" : "+"}
+            {isUnavailable ? "—" : "+"}
           </span>
         </div>
       </div>
     </>
   );
 
-  if (isSoldOut) {
-    return <article className={`${styles.productCard} ${styles.unavailableCard}`}>{content}</article>;
+  if (isUnavailable) {
+    return <article className={`${styles.productCard} ${styles.unavailableCard}`} aria-label={`${product.name}، غير متاح مؤقتًا`}>{content}</article>;
   }
 
   return (

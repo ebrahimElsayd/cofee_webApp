@@ -38,6 +38,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
   const [customizationMessage, setCustomizationMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isAddedSheetOpen, setIsAddedSheetOpen] = useState(false);
+  const isUnavailable = product.availability === "temporarily-unavailable";
 
   const customizationsPrice = calculateCustomizationsPrice(
     product.customizationGroups,
@@ -96,6 +97,10 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
   }
 
   function requestAddProduct() {
+    if (isUnavailable) {
+      setCustomizationMessage("هذا المنتج غير متاح مؤقتًا. اختر منتجًا آخر من المينيو.");
+      return;
+    }
     const missingGroup = findMissingRequiredGroup(
       product.customizationGroups,
       selections,
@@ -192,7 +197,7 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
           </Link>
 
           <span className={styles.orderBadge}>
-            {product.customizationGroups.length > 0 ? "خصّص طلبك" : "تفاصيل المنتج"}
+            {isUnavailable ? "غير متاح مؤقتًا" : product.customizationGroups.length > 0 ? "خصّص طلبك" : "تفاصيل المنتج"}
           </span>
 
           <div className={styles.productTitle}>
@@ -263,8 +268,8 @@ export function ProductDetailsScreen({ product, tableId }: ProductDetailsScreenP
         </div>
 
         <footer className={styles.actionBar}>
-          <button type="button" onClick={requestAddProduct} disabled={isSaving}>
-            <span><strong lang="en">Add to Table Cart</strong><small>أضف إلى طلب الطاولة</small></span>
+          <button type="button" onClick={requestAddProduct} disabled={isSaving || isUnavailable}>
+            <span><strong lang="en">{isUnavailable ? "Temporarily unavailable" : "Add to Table Cart"}</strong><small>{isUnavailable ? "غير متاح مؤقتًا" : "أضف إلى طلب الطاولة"}</small></span>
             <b>{totalPrice} <small lang="en">EGP</small></b>
           </button>
         </footer>

@@ -340,7 +340,7 @@ function mapProduct(product: CatalogProduct, categoryCode?: string): MenuProduct
     price: Number(product.base_price),
     imageUrl: getOptimizedImageUrl(product.image_url),
     imageAlt: product.name,
-    availability: product.availability === "available" ? "available" : "sold-out",
+    availability: product.availability === "available" ? "available" : "temporarily-unavailable",
     allowsNotes: product.allows_notes,
     customizationGroups,
     searchTerms: [product.name, product.name_ar, product.slug],
