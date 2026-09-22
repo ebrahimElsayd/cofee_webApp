@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   getCartUpdatedEventName,
   getSharedDraftCart,
+  subscribeToSharedDraftCart,
 } from "@/features/cart/services/local-draft-cart.service";
 import { getStoredTableSession } from "@/features/table-session/services/local-table-session.service";
 import { getCustomerNotifications, markCustomerNotificationsRead, subscribeToTableOrderUpdates, TableSessionClosedError, validateActiveTableSession } from "../services/supabase-order-tracking.service";
@@ -92,19 +93,34 @@ export function TableBottomNavigation({ tableId }: { tableId: number }) {
   }, [cafeId, router, tableId]);
 
   useEffect(() => {
+    let active = true;
+    let unsubscribe = () => {};
+
     function refreshCartCount() {
       void getSharedDraftCart(tableId)
-        .then((items) => setCartCount(items.reduce((total, item) => total + item.quantity, 0)))
-        .catch(() => setCartCount(0));
+        .then((items) => {
+          if (active) setCartCount(items.reduce((total, item) => total + item.quantity, 0));
+        })
+        .catch(() => { if (active) setCartCount(0); });
     }
 
     const timer = window.setTimeout(refreshCartCount, 0);
+    let disposed = false;
+    void subscribeToSharedDraftCart(tableId, refreshCartCount)
+      .then((cleanup) => {
+        if (disposed) cleanup();
+        else unsubscribe = cleanup;
+      })
+      .catch(() => { /* Cart count remains functional without Realtime. */ });
     const eventName = getCartUpdatedEventName();
     window.addEventListener(eventName, refreshCartCount);
     window.addEventListener("storage", refreshCartCount);
 
     return () => {
+      active = false;
+      disposed = true;
       window.clearTimeout(timer);
+      unsubscribe();
       window.removeEventListener(eventName, refreshCartCount);
       window.removeEventListener("storage", refreshCartCount);
     };
