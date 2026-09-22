@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  getCartUpdatedEventName,
   getSharedDraftCartState,
   removeFromSharedDraftCart,
   subscribeToSharedDraftCart,
@@ -47,6 +48,9 @@ export function CartScreen({ tableId }: { tableId: number }) {
       setItems(cart.items);
       setResponsibleName(cart.responsibleName);
       setIsResponsible(cart.isCurrentGuestResponsible);
+      // Keep the persistent bottom-navigation badge aligned with the canonical
+      // Supabase cart after every initial or realtime refresh.
+      window.dispatchEvent(new CustomEvent(getCartUpdatedEventName()));
       const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
       reconcileAvailability(catalog.products, cart.items);
     } catch {
