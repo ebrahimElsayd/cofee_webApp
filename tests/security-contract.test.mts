@@ -69,3 +69,12 @@ test("bill requests are deduplicated in the client and rejected after settlement
   assert.match(migration, /session_has_paid_payment/);
   assert.match(migration, /service_requests_one_open_bill_per_session/);
 });
+
+test("manager product removal is a cafe-scoped archive that preserves order history", () => {
+  const migration = source("supabase/migrations/202609220001_archive_product.sql");
+  assert.match(migration, /public\.is_staff_user\(\)/);
+  assert.match(migration, /v_cafe_id <> public\.current_staff_cafe_id\(\)/);
+  assert.match(migration, /set availability = 'hidden'/);
+  assert.match(migration, /product_availability/);
+  assert.doesNotMatch(migration, /delete from public\.menu_products/);
+});
