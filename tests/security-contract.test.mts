@@ -55,7 +55,8 @@ test("only the first submission is owner-controlled", () => {
 test("cart realtime refresh does not reload the menu catalog", () => {
   const screen = source("src/features/cart/components/cart-screen.tsx");
   assert.match(screen, /refreshCart\(\{ checkCatalog: true \}\)/);
-  assert.match(screen, /subscribeToSharedDraftCart\(tableId, \(\) => \{ void refreshCart\(\); \}\)/);
+  assert.match(screen, /const scheduleCartRefresh = \(\) => \{[\s\S]*void refreshCart\(\);[\s\S]*\}, 75\);/);
+  assert.match(screen, /subscribeToSharedDraftCart\(tableId, scheduleCartRefresh\)/);
 });
 
 test("customer order tracking is scoped to the active session", () => {
