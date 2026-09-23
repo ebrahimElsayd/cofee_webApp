@@ -1,11 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 function source(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(`../${relativePath}`, import.meta.url)), "utf8");
 }
+
+test("Supabase migration versions are unique", () => {
+  const migrationDirectory = fileURLToPath(new URL("../supabase/migrations/", import.meta.url));
+  const versions = readdirSync(migrationDirectory)
+    .filter((name) => name.endsWith(".sql"))
+    .map((name) => name.match(/^(\d+)_/)?.[1])
+    .filter((version): version is string => Boolean(version));
+  assert.equal(new Set(versions).size, versions.length, "each migration must have a unique version");
+});
 
 test("order submission sends identifiers only and retains idempotency", () => {
   const cart = source("src/features/cart/services/local-draft-cart.service.ts");
@@ -114,7 +123,7 @@ test("manager product removal is a cafe-scoped archive that preserves order hist
 });
 
 test("archived products restore as temporarily unavailable within the active cafe", () => {
-  const migration = source("supabase/migrations/202609220002_restore_archived_product.sql");
+  const migration = source("supabase/migrations/202609220005_restore_archived_product.sql");
   assert.match(migration, /public\.is_staff_user\(\)/);
   assert.match(migration, /v_cafe_id <> public\.current_staff_cafe_id\(\)/);
   assert.match(migration, /and availability = 'hidden'/);

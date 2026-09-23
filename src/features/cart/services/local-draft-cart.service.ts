@@ -452,10 +452,11 @@ async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
   }
 
   const supabase = createSupabaseBrowserClient();
-  const result = await withCartTimeout(supabase.from("table_sessions").select("id,table_id,status,cafe_tables!inner(table_number,cafe_id)").eq("id", pointer.sessionId).maybeSingle());
+  const result = await withCartTimeout(supabase.rpc("customer_validate_table_session", { p_session_id: pointer.sessionId }).maybeSingle());
   if (result.error) throw result.error;
-  const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
-  const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
+  const validation = result.data as { session_id: string; table_id: string; session_status: string; cafe_id: string; table_number: number } | null;
+  const row = validation ? { id: validation.session_id, table_id: validation.table_id, status: validation.session_status } : null;
+  const table = validation ? { table_number: validation.table_number, cafe_id: validation.cafe_id } : null;
   if (row?.status === "payment_pending") {
     const paid = await withCartTimeout(supabase
       .from("payments")

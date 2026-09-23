@@ -4,6 +4,7 @@ const customerUrl = process.env.E2E_CUSTOMER_URL ?? 'http://localhost:3002';
 const managerUrl = process.env.E2E_MANAGER_URL ?? 'http://localhost:3000';
 const tableId = process.env.E2E_TABLE_ID ?? '14';
 const cafeId = process.env.E2E_CAFE_ID ?? '00000000-0000-0000-0000-000000000001';
+const qrToken = process.env.E2E_QR_TOKEN;
 
 test.describe('customer → cashier full order lifecycle', () => {
   test('submits, prepares, delivers, settles and closes one table order', async ({ browser }) => {
@@ -19,8 +20,11 @@ test.describe('customer → cashier full order lifecycle', () => {
     customerPage.on('console', (message) => {
       if (message.type() === 'error') { consoleErrors.push(message.text()); console.log(`[customer console] ${message.text()}`); }
     });
-    customerPage.on('response', (response) => {
-      if (response.status() === 404) console.log(`[customer 404] ${response.url()}`);
+    customerPage.on('response', async (response) => {
+      if (response.status() < 400) return;
+      const url = new URL(response.url());
+      if (!url.pathname.startsWith('/rest/v1/') && !url.pathname.startsWith('/auth/v1/')) return;
+      console.log(`[customer API ${response.status()}] ${url.pathname}: ${(await response.text().catch(() => '')).slice(0, 500)}`);
     });
     managerPage.on('console', (message) => {
       if (message.type() === 'error') managerConsoleErrors.push(message.text());
@@ -28,8 +32,9 @@ test.describe('customer → cashier full order lifecycle', () => {
 
     try {
       await test.step('1. Open table session from QR URL', async () => {
-        await customerPage.goto(`${customerUrl}/table/${tableId}?cafe=${cafeId}`, { waitUntil: 'domcontentloaded' });
-        await expect(customerPage).toHaveURL(new RegExp(`/table/${tableId}/menu$`), { timeout: 20_000 });
+        if (!qrToken) throw new Error('E2E_QR_TOKEN must be set to the disposable QA table token.');
+        await customerPage.goto(`${customerUrl}/table/${tableId}?cafe=${cafeId}&token=${qrToken}`, { waitUntil: 'domcontentloaded' });
+        await expect(customerPage).toHaveURL(new RegExp(`/table/${tableId}/menu(?:\\?.*)?$`), { timeout: 20_000 });
         await expect(customerPage.locator('body')).not.toContainText('جاري التعرف على الطاولة');
       });
 
@@ -47,7 +52,13 @@ test.describe('customer → cashier full order lifecycle', () => {
           const recipient = customerPage.getByRole('dialog');
           const recipientOpened = await expect(recipient).toBeVisible({ timeout: 10_000 }).then(() => true).catch(() => false);
           if (recipientOpened) {
-            await recipient.getByRole('button', { name: 'G Guest' }).last().click();
+            const savedRecipient = recipient.getByRole('button', { name: /QA Guest/ }).first();
+            if (await savedRecipient.count()) {
+              await savedRecipient.click();
+            } else {
+              await recipient.getByPlaceholder('اكتب الاسم هنا...').fill('QA Guest');
+              await recipient.getByRole('button', { name: /تأكيد/ }).click();
+            }
             await expect(recipient).toBeHidden({ timeout: 5_000 });
           }
           const addMore = customerPage.getByRole('button', { name: /إضافة المزيد|Add more/i });
@@ -75,20 +86,18 @@ test.describe('customer → cashier full order lifecycle', () => {
           await expect(managerPage).toHaveURL(/\/dashboard/, { timeout: 15_000 });
         }
         await managerPage.goto(`${managerUrl}/orders`, { waitUntil: 'domcontentloaded' });
-        await expect(managerPage.getByText(new RegExp(`Table\\s*${tableId}`)).first()).toBeVisible({ timeout: 30_000 });
+        await expect(managerPage.getByRole('button', { name: new RegExp(`طاولة\\s*${tableId}`) }).first()).toBeVisible({ timeout: 30_000 });
       });
 
       await test.step('4. Move item received → preparing → ready and verify customer realtime state', async () => {
-        const table = managerPage.getByRole('button', { name: new RegExp(`Table\\s*${tableId}`) }).first();
+        const table = managerPage.getByRole('button', { name: new RegExp(`طاولة\\s*${tableId}`) }).first();
         await table.click();
-        const drinkRow = managerPage.locator('article.premium-drink-row').first();
-        const status = drinkRow.getByRole('button', { name: /Received|New|Preparing|Ready/ }).first();
-        await status.click();
-        await drinkRow.getByRole('option', { name: /Preparing/ }).click();
-        await expect(status).toHaveText(/Preparing/);
-        await status.click();
-        await drinkRow.getByRole('option', { name: /Ready/ }).click();
-        await expect(status).toHaveText(/Ready/);
+        const status = managerPage.getByRole('combobox', { name: 'حالة الطلب' });
+        await expect(status).toBeVisible();
+        await status.selectOption('Preparing');
+        await expect(status).toHaveValue('Preparing');
+        await status.selectOption('Ready');
+        await expect(status).toHaveValue('Ready');
         await expect(customerPage.getByText(/Ready|جاهز/i).first()).toBeVisible({ timeout: 30_000 });
       });
 
@@ -99,16 +108,16 @@ test.describe('customer → cashier full order lifecycle', () => {
           await expect(deliver).toBeVisible({ timeout: 20_000 });
         }
         await deliver.click();
-        await managerPage.getByRole('button', { name: /الانتقال للتحصيل|Collect Cash/ }).click();
+        await managerPage.getByRole('button', { name: /الانتقال للتحصيل|Collect payment/ }).click();
         const dialog = managerPage.getByRole('dialog');
         await expect(dialog).toBeVisible();
-        const totalText = await dialog.locator('strong').filter({ hasText: /EGP/ }).last().innerText();
-        const total = Number(totalText.replace(/[^0-9.]/g, '')) || 10000;
+        const totalText = await dialog.locator('strong.text-2xl').innerText();
+        const total = Number(totalText.replace(/[^0-9.]/g, ''));
+        expect(total, 'payment dialog must show a parseable positive total').toBeGreaterThan(0);
         await dialog.locator('input[type="number"]').fill(String(total + 100));
-        await dialog.getByRole('button', { name: /تأكيد الدفع/ }).click();
+        await dialog.getByRole('button', { name: /تأكيد الدفع|Confirm payment/ }).click();
         await expect(dialog).toBeHidden({ timeout: 30_000 });
-        await managerPage.getByRole('button', { name: /Customer left · Close table/ }).click();
-        await expect(managerPage.getByText(new RegExp(`Table\\s*${tableId}`)).first()).toBeVisible();
+        await managerPage.getByRole('button', { name: /Customer left · Close table|غادر العميل · إغلاق الطاولة/ }).click();
       });
 
       await test.step('6. Reconcile available table and terminated customer session', async () => {

@@ -111,22 +111,23 @@ async function validateSessionForTable(tableId: number): Promise<ActiveSessionPo
   const pointer = getActiveTableSessionPointer(tableId);
   if (!pointer || pointer.tableId !== tableId) throw new Error("TABLE_SESSION_CONTEXT_MISSING");
   const supabase = createSupabaseBrowserClient();
-  const result = await supabase.from("table_sessions").select("id,table_id,status,cafe_tables!inner(table_number,cafe_id)").eq("id", pointer.sessionId).maybeSingle();
+  const result = await supabase.rpc("customer_validate_table_session", { p_session_id: pointer.sessionId }).maybeSingle();
   if (result.error) throw result.error;
-  const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
-  const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
-  let effectiveStatus = row?.status;
+  const row = result.data as { session_id: string; table_id: string; session_status: string; cafe_id: string; table_number: number } | null;
+  const table = row ? { table_number: row.table_number, cafe_id: row.cafe_id } : null;
+  const session = row ? { id: row.session_id, table_id: row.table_id, status: row.session_status } : null;
+  let effectiveStatus = session?.status;
   let hasPaidPayment = false;
-  if (row?.status === "payment_pending") {
-    const paid = await supabase.from("payments").select("id").eq("session_id", row.id).eq("status", "paid").limit(1).maybeSingle();
+  if (session?.status === "payment_pending") {
+    const paid = await supabase.from("payments").select("id").eq("session_id", session.id).eq("status", "paid").limit(1).maybeSingle();
     if (paid.error) throw paid.error;
     hasPaidPayment = Boolean(paid.data);
     if (!hasPaidPayment) effectiveStatus = "ordering";
   }
-  if (!row || !table || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
+  if (!session || !table || table.table_number !== tableId || table.cafe_id !== pointer.cafeId) {
     throw new Error("TABLE_SESSION_ACCESS_UNAVAILABLE");
   }
-  if (row.status === "closed") {
+  if (session.status === "closed") {
     // A newer scan may have replaced the pointer while validation was in flight.
     if (getActiveTableSessionPointer(tableId)?.sessionId !== pointer.sessionId) {
       throw new Error("TABLE_SESSION_CHANGED");
@@ -139,7 +140,7 @@ async function validateSessionForTable(tableId: number): Promise<ActiveSessionPo
     throw new TableSessionClosedError();
   }
   if (!ACTIVE_SESSION_STATUSES.has(effectiveStatus ?? "")) throw new Error("TABLE_SESSION_ACCESS_UNAVAILABLE");
-  return { ...pointer, status: effectiveStatus as "open" | "ordering" | "payment_pending", sessionStatus: row.status, hasPaidPayment };
+  return { ...pointer, status: effectiveStatus as "open" | "ordering" | "payment_pending", sessionStatus: session.status, hasPaidPayment };
 }
 
 export async function validateActiveTableSession(tableId: number): Promise<void> {
