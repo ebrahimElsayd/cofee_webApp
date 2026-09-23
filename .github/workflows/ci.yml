@@ -36,6 +36,9 @@ jobs:
       - name: Run unit and contract tests
         run: npm test
 
+      - name: Generate Next.js route types
+        run: npx next typegen
+
       - name: Type-check
         run: npm run typecheck
 
