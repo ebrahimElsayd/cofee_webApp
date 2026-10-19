@@ -3,7 +3,7 @@
 import { ResilientImage } from "@/shared/presentation/components/resilient-image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getCartUpdatedEventName,
   getSharedDraftCartState,
@@ -36,6 +36,8 @@ export function CartScreen({ tableId }: { tableId: number }) {
   const [responsibleName, setResponsibleName] = useState("");
   const [hasPreviousOrders, setHasPreviousOrders] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
+  const refreshSequenceRef = useRef(0);
+  const needsAvailabilityCheckRef = useRef(true);
 
   function reconcileAvailability(products: Awaited<ReturnType<typeof getSupabaseMenuCatalog>>["products"], cartItems: DraftCartItem[]) {
     const availableIds = new Set(products.filter((product) => product.availability === "available").map((product) => product.id));
@@ -44,8 +46,14 @@ export function CartScreen({ tableId }: { tableId: number }) {
   }
 
   const refreshCart = useCallback(async ({ checkCatalog = false }: { checkCatalog?: boolean } = {}) => {
+    const refreshSequence = ++refreshSequenceRef.current;
     try {
       const cart = await getSharedDraftCartState(tableId);
+      // Cart and navigation listeners can receive adjacent Realtime events
+      // for the same transaction. Never let an older, slower read overwrite
+      // a newer cart snapshot (for example, restoring the empty-cart screen
+      // after another phone's successful add).
+      if (refreshSequence !== refreshSequenceRef.current) return;
       setItems(cart.items);
       setResponsibleName(cart.responsibleName);
       setHasPreviousOrders(cart.hasPreviousOrders);
@@ -53,23 +61,43 @@ export function CartScreen({ tableId }: { tableId: number }) {
       // Keep the persistent bottom-navigation badge aligned with the canonical
       // Supabase cart after every initial or realtime refresh.
       window.dispatchEvent(new CustomEvent(getCartUpdatedEventName()));
-      if (checkCatalog) {
-        const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
-        reconcileAvailability(catalog.products, cart.items);
+      if (checkCatalog || needsAvailabilityCheckRef.current) {
+        setIsAvailabilityChecking(true);
+        try {
+          const catalog = await getSupabaseMenuCatalog({ forceRefresh: true, tableId });
+          if (refreshSequence !== refreshSequenceRef.current) return;
+          reconcileAvailability(catalog.products, cart.items);
+          needsAvailabilityCheckRef.current = false;
+        } catch {
+          if (refreshSequence !== refreshSequenceRef.current) return;
+          // Don't leave the send button in a permanent, unexplained loading
+          // state. Sending performs its own fresh availability check and will
+          // fail closed if Supabase still cannot verify the current catalog.
+          setIsAvailabilityChecking(false);
+          setSubmitError("تعذر التحقق من توفر المنتجات. أعد المحاولة قبل الإرسال.");
+        }
       }
     } catch {
-      setItems([]);
+      if (refreshSequence === refreshSequenceRef.current) setItems([]);
     } finally {
-      setIsReady(true);
+      if (refreshSequence === refreshSequenceRef.current) setIsReady(true);
     }
   }, [tableId]);
 
   useEffect(() => {
     let unsubscribe = () => {};
     let disposed = false;
+    let refreshTimer: number | null = null;
+    const scheduleCartRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void refreshCart();
+      }, 75);
+    };
     const timer = window.setTimeout(() => {
       void refreshCart({ checkCatalog: true });
-      void subscribeToSharedDraftCart(tableId, () => { void refreshCart(); })
+      void subscribeToSharedDraftCart(tableId, scheduleCartRefresh)
         .then((cleanup) => {
           if (disposed) cleanup();
           else unsubscribe = cleanup;
@@ -80,6 +108,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
     return () => {
       disposed = true;
       window.clearTimeout(timer);
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       unsubscribe();
     };
   }, [refreshCart, tableId]);
@@ -96,6 +125,7 @@ export function CartScreen({ tableId }: { tableId: number }) {
 
   async function removeItem(itemId: string) {
     try {
+      needsAvailabilityCheckRef.current = true;
       await removeFromSharedDraftCart(tableId, itemId);
       await refreshCart({ checkCatalog: true });
     } catch (error) {

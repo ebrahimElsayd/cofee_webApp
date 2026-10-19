@@ -12,6 +12,12 @@ const CART_UPDATED_EVENT = "kings-cafe:draft-cart-updated";
 const ACTIVE_SESSION_KEY = "kings-cafe:active-table-session";
 const ORDERABLE_SESSION_STATUSES = new Set(["active", "open", "ordering"]);
 const CART_REQUEST_TIMEOUT_MS = 12_000;
+type SharedCartRealtimeSubscription = {
+  supabase: ReturnType<typeof createSupabaseBrowserClient>;
+  channel: RealtimeChannel;
+  listeners: Set<() => void>;
+};
+const sharedCartRealtimeSubscriptions = new Map<string, SharedCartRealtimeSubscription>();
 
 type ActiveSessionPointer = { sessionId: string; tableId: number; cafeId: string; guestId?: string };
 type VerifiedSession = ActiveSessionPointer & { guestId: string; tableUuid: string };
@@ -397,20 +403,48 @@ export async function subscribeToSharedDraftCart(
   onChange: () => void,
 ): Promise<() => void> {
   const session = await getVerifiedSession(tableId);
+  const existing = sharedCartRealtimeSubscriptions.get(session.sessionId);
+  if (existing) {
+    existing.listeners.add(onChange);
+    // Components mounting while a channel is already live still need a fresh
+    // canonical snapshot; their initial query may have raced channel setup.
+    onChange();
+    return () => {
+      existing.listeners.delete(onChange);
+      if (existing.listeners.size > 0) return;
+      if (sharedCartRealtimeSubscriptions.get(session.sessionId) === existing) {
+        sharedCartRealtimeSubscriptions.delete(session.sessionId);
+      }
+      void existing.supabase.removeChannel(existing.channel);
+    };
+  }
+
   const supabase = createSupabaseBrowserClient();
+  const listeners = new Set([onChange]);
   // Subscribe to the session, not one cart id. A submitted cart is replaced
   // by a new active cart for the next round; session-level cart updates keep
-  // every phone in sync across that lifecycle boundary without polling.
-  let channel: RealtimeChannel | null = supabase
+  // every phone in sync across that lifecycle boundary without polling. Keep
+  // one channel per session in this tab and fan out to all mounted consumers.
+  const channel = supabase
     .channel(`customer-cart-live:session:${session.sessionId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "carts", filter: `session_id=eq.${session.sessionId}` }, onChange)
-    .subscribe();
+    .on("postgres_changes", { event: "*", schema: "public", table: "carts", filter: `session_id=eq.${session.sessionId}` }, () => {
+      listeners.forEach((listener) => listener());
+    })
+    .subscribe((status) => {
+      // If a phone reconnects after being offline, reconcile once on channel
+      // recovery rather than polling throughout the customer's visit.
+      if (status === "SUBSCRIBED") listeners.forEach((listener) => listener());
+    });
+  const subscription: SharedCartRealtimeSubscription = { supabase, channel, listeners };
+  sharedCartRealtimeSubscriptions.set(session.sessionId, subscription);
 
   return () => {
-    if (!channel) return;
-    const activeChannel = channel;
-    channel = null;
-    void supabase.removeChannel(activeChannel);
+    listeners.delete(onChange);
+    if (listeners.size > 0) return;
+    if (sharedCartRealtimeSubscriptions.get(session.sessionId) === subscription) {
+      sharedCartRealtimeSubscriptions.delete(session.sessionId);
+    }
+    void supabase.removeChannel(channel);
   };
 }
 
@@ -452,10 +486,11 @@ async function getVerifiedSession(tableId: number): Promise<VerifiedSession> {
   }
 
   const supabase = createSupabaseBrowserClient();
-  const result = await withCartTimeout(supabase.from("table_sessions").select("id,table_id,status,cafe_tables!inner(table_number,cafe_id)").eq("id", pointer.sessionId).maybeSingle());
+  const result = await withCartTimeout(supabase.rpc("customer_validate_table_session", { p_session_id: pointer.sessionId }).maybeSingle());
   if (result.error) throw result.error;
-  const row = result.data as unknown as { id: string; table_id: string; status: string; cafe_tables: { table_number: number; cafe_id: string } | { table_number: number; cafe_id: string }[] } | null;
-  const table = Array.isArray(row?.cafe_tables) ? row.cafe_tables[0] : row?.cafe_tables;
+  const validation = result.data as { session_id: string; table_id: string; session_status: string; cafe_id: string; table_number: number } | null;
+  const row = validation ? { id: validation.session_id, table_id: validation.table_id, status: validation.session_status } : null;
+  const table = validation ? { table_number: validation.table_number, cafe_id: validation.cafe_id } : null;
   if (row?.status === "payment_pending") {
     const paid = await withCartTimeout(supabase
       .from("payments")

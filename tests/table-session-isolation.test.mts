@@ -19,13 +19,19 @@ function setup(status = "open") {
   storage.setItem(key, JSON.stringify(session(10)));
   storage.setItem("kings-cafe:table:10:draft-cart:v2", "[1]");
   const queried: string[] = [];
-  const db = { from(name: string) {
+  const db = {
+    rpc(name: string, args: { p_session_id: string }) {
+      assert.equal(name, "customer_validate_table_session");
+      queried.push(args.p_session_id);
+      return { async maybeSingle() { return { data: { session_id: args.p_session_id, table_id: "table-5", session_status: status, cafe_id: "cafe", table_number: 5 }, error: null }; } };
+    },
+    from(name: string) {
     let id = "";
     const query = {
       select() { return query; }, eq(column: string, value: string) { if (column === "id") id = value; return query; },
       limit() { return query; },
       async maybeSingle() {
-        if (name === "table_sessions") queried.push(id);
+        if (name === "payments") return { data: null, error: null };
         return { data: { id, table_id: "table-5", status, cafe_tables: { table_number: 5, cafe_id: "cafe" } }, error: null };
       },
       async single() { return { data: { id: "cart-5" }, error: null }; },
